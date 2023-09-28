@@ -233,6 +233,7 @@
     <ClInclude Include="NES\Mappers\Unlicensed\Mapper241.h" />
     <ClInclude Include="NES\Mappers\Unlicensed\Mapper244.h" />
     <ClInclude Include="NES\Mappers\Unlicensed\Mapper246.h" />
+    <ClInclude Include="NES\Mappers\Unlicensed\Mapper248.h" />
     <ClInclude Include="NES\Mappers\Unlicensed\Mapper39.h" />
     <ClInclude Include="NES\Mappers\Unlicensed\Mapper42.h" />
     <ClInclude Include="NES\Mappers\Unlicensed\Mapper43.h" />

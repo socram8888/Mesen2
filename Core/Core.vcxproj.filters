@@ -1995,6 +1995,9 @@
     <ClInclude Include="NES\Mappers\Unlicensed\Mapper246.h">
       <Filter>NES\Mappers\Unlicensed</Filter>
     </ClInclude>
+    <ClInclude Include="NES\Mappers\Unlicensed\Mapper248.h">
+      <Filter>NES\Mappers\Unlicensed</Filter>
+    </ClInclude>
     <ClInclude Include="NES\Mappers\Unlicensed\Unl255in1.h">
       <Filter>NES\Mappers\Unlicensed</Filter>
     </ClInclude>

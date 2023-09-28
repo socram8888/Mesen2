@@ -234,6 +234,7 @@
 #include "NES/Mappers/Unlicensed/Mapper241.h"
 #include "NES/Mappers/Unlicensed/Mapper244.h"
 #include "NES/Mappers/Unlicensed/Mapper246.h"
+#include "NES/Mappers/Unlicensed/Mapper248.h"
 #include "NES/Mappers/Unlicensed/Mapper39.h"
 #include "NES/Mappers/Unlicensed/Mapper42.h"
 #include "NES/Mappers/Unlicensed/Mapper43.h"
@@ -512,6 +513,7 @@ BaseMapper* MapperFactory::GetMapperFromID(RomData &romData)
 		case 244: return new Mapper244();
 		case 245: return new MMC3_245();
 		case 246: return new Mapper246();
+		case 248: return new Mapper248();
 		case 249: return new MMC3_249();
 		case 250: return new MMC3_250();
 		case 252: return new Waixing252();
