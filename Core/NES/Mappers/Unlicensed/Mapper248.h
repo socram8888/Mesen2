@@ -24,7 +24,11 @@ protected:
 
 		SelectPrgPage(0, 0);
 		SelectPrgPage(1, -1);
-		SetNametables(0, 1, 1, 0);
+
+		if(GetMirroringType() != MirroringType::FourScreens) {
+			// Diagonal mirroring unless four screen
+			SetNametables(0, 1, 1, 0);
+		}
 	}
 
 	uint8_t ReadRegister(uint16_t addr) override
