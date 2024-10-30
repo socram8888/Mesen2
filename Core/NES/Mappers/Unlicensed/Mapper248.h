@@ -21,6 +21,7 @@ protected:
 	{
 		_flash.reset(new FlashSST39SF040(_prgRom, _prgSize));
 		_orgPrgRom = vector<uint8_t>(_prgRom, _prgRom + _prgSize);
+		ApplySaveData();
 
 		SelectPrgPage(0, 0);
 		SelectPrgPage(1, -1);
