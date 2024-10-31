@@ -16,10 +16,11 @@ protected:
 	uint16_t RegisterEndAddress() override { return 0xFFFF; }
 	uint16_t GetPrgPageSize() override { return 0x4000; }
 	uint16_t GetChrPageSize() override { return 0x2000; }
+	bool AllowRegisterRead() override { return true; }
 
 	void InitMapper() override
 	{
-		_flash.reset(new FlashSST39SF040(_prgRom, _prgSize));
+		_flash.reset(new FlashSST39SF040(_console, _prgRom, _prgSize));
 		_orgPrgRom = vector<uint8_t>(_prgRom, _prgRom + _prgSize);
 		ApplySaveData();
 
