@@ -632,6 +632,7 @@ struct NesConfig
 	bool AllowInvalidInput = false;
 	bool DisableGameGenieBusConflicts = false;
 	bool DisableFlashSaves = false;
+	bool EnableFlashDelays = false;
 
 	bool EnableOamDecay = false;
 	bool EnablePpuOamRowCorruption = false;

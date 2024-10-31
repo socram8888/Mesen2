@@ -1,5 +1,6 @@
 #pragma once
 #include "pch.h"
+#include "NES/NesConsole.h"
 #include "Utilities/ISerializable.h"
 #include "Utilities/Serializer.h"
 
@@ -14,13 +15,26 @@ private:
 		Erase
 	};
 
+	NesConsole* _console = nullptr;
+
 	ChipMode _mode = ChipMode::WaitingForCommand;
 	uint8_t _cycle = 0;
 	uint8_t _softwareId = false;
+	uint64_t _wipEndCpuCycle = 0;
+	uint8_t _wipReply;
 
 	//PRG data and size
 	uint8_t* _data = nullptr;
 	uint32_t _size = 0;
+
+	void StartWip(uint64_t delayUs, uint8_t trueData)
+	{
+		if(_console->GetNesConfig().EnableFlashDelays) {
+			_wipEndCpuCycle = _console->GetMasterClockRate() * delayUs / 1000000 + _console->GetMasterClock();
+			//While busy, DQ7 returns the opposite of the true data. DQ6 toggles, starting always high first.
+			_wipReply = (trueData ^ 0x80) & 0x80;
+		}
+	}
 
 protected:
 	void Serialize(Serializer& s)
@@ -28,11 +42,14 @@ protected:
 		SV(_mode);
 		SV(_cycle);
 		SV(_softwareId);
+		SV(_wipEndCpuCycle);
+		SV(_wipReply);
 	}
 
 public:
-	FlashSST39SF040(uint8_t* data, uint32_t size)
+	FlashSST39SF040(NesConsole* console, uint8_t* data, uint32_t size)
 	{
+		_console = console;
 		_data = data;
 		_size = size;
 	}
@@ -45,6 +62,10 @@ public:
 				case 0x01: return 0xB7;
 				default: return 0xFF;
 			}
+		} else if(_console->GetMasterClock() < _wipEndCpuCycle) {
+			//Busy. Perform DQ6 bit toggling and return.
+			_wipReply ^= 0x40;
+			return _wipReply;
 		}
 		return -1;
 	}
@@ -57,6 +78,11 @@ public:
 
 	void Write(uint32_t addr, uint8_t value)
 	{
+		if(_console->GetMasterClock() < _wipEndCpuCycle) {
+			//Chip busy - ignore writes
+			return;
+		}
+
 		uint16_t cmd = addr & 0x7FFF;
 		if(_mode == ChipMode::WaitingForCommand) {
 			if(_cycle == 0) {
@@ -88,6 +114,8 @@ public:
 			if(addr < _size) {
 				_data[addr] &= value;
 			}
+			//Maximum of 10us, so emulate 8us
+			StartWip(8, value);
 			ResetState();
 		} else if(_mode == ChipMode::Erase) {
 			if(_cycle == 3) {
@@ -108,11 +136,15 @@ public:
 				if(cmd == 0x5555 && value == 0x10) {
 					//Chip erase
 					memset(_data, 0xFF, _size);
+					//Maximum of 100ms, so emulate 95ms
+					StartWip(95000, 0xFF);
 				} else if(value == 0x30) {
 					//Sector erase
 					uint32_t offset = (addr & 0x7F000);
 					if(offset + 0x1000 <= _size) {
 						memset(_data + offset, 0xFF, 0x1000);
+						//Maximum of 25ms, so emulate 20ms
+						StartWip(20000, 0xFF);
 					}
 				}
 				ResetState();

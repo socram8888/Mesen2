@@ -1,12 +1,7 @@
-﻿using Mesen.Interop;
+using Mesen.Interop;
 using ReactiveUI.Fody.Helpers;
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Mesen.Config
 {
@@ -28,7 +23,7 @@ namespace Mesen.Config
 		[Reactive] public NesControllerConfig ExpPortB { get; set; } = new();
 		[Reactive] public NesControllerConfig ExpPortC { get; set; } = new();
 		[Reactive] public NesControllerConfig ExpPortD { get; set; } = new();
-		
+
 		[Reactive] public NesControllerConfig MapperInput { get; set; } = new();
 
 		[Reactive][MinMax(0, 3)] public UInt32 LightDetectionRadius { get; set; } = 0;
@@ -59,7 +54,7 @@ namespace Mesen.Config
 
 		[Reactive] public OverscanConfig NtscOverscan { get; set; } = new();
 		[Reactive] public OverscanConfig PalOverscan { get; set; } = new();
-		
+
 		//Emulation
 		[Reactive] public bool EnableOamDecay { get; set; } = false;
 		[Reactive] public bool EnablePpuOamRowCorruption { get; set; } = false;
@@ -72,19 +67,20 @@ namespace Mesen.Config
 		[Reactive] public bool RestrictPpuAccessOnFirstFrame { get; set; } = false;
 		[Reactive] public bool EnableDmcSampleDuplicationGlitch { get; set; } = false;
 		[Reactive] public bool EnableCpuTestMode { get; set; } = false;
-		
+
 		[Reactive] public NesConsoleType ConsoleType { get; set; } = NesConsoleType.Nes001;
 		[Reactive] public bool DisablePpuReset { get; set; } = false;
 		[Reactive] public bool AllowInvalidInput { get; set; } = false;
 		[Reactive] public bool DisableGameGenieBusConflicts { get; set; } = false;
 		[Reactive] public bool DisableFlashSaves { get; set; } = false;
+		[Reactive] public bool EnableFlashDelays { get; set; } = false;
 
 		[Reactive] public bool RandomizeMapperPowerOnState { get; set; } = false;
 		[Reactive] public bool RandomizeCpuPpuAlignment { get; set; } = false;
 		[Reactive] public RamState RamPowerOnState { get; set; } = RamState.AllZeros;
 
-		[Reactive] [MinMax(0, 1000)] public UInt32 PpuExtraScanlinesBeforeNmi { get; set; } = 0;
-		[Reactive] [MinMax(0, 1000)] public UInt32 PpuExtraScanlinesAfterNmi { get; set; } = 0;
+		[Reactive][MinMax(0, 1000)] public UInt32 PpuExtraScanlinesBeforeNmi { get; set; } = 0;
+		[Reactive][MinMax(0, 1000)] public UInt32 PpuExtraScanlinesAfterNmi { get; set; } = 0;
 
 		//Audio
 		[Reactive] public bool DisableNoiseModeFlag { get; set; } = false;
@@ -92,36 +88,36 @@ namespace Mesen.Config
 		[Reactive] public bool SilenceTriangleHighFreq { get; set; } = false;
 		[Reactive] public bool SwapDutyCycles { get; set; } = false;
 
-		[Reactive] [MinMax(0, 100)] public UInt32 Square1Volume { get; set; } = 100;
-		[Reactive] [MinMax(0, 100)] public UInt32 Square2Volume { get; set; } = 100;
-		[Reactive] [MinMax(0, 100)] public UInt32 TriangleVolume { get; set; } = 100;
-		[Reactive] [MinMax(0, 100)] public UInt32 NoiseVolume { get; set; } = 100;
-		[Reactive] [MinMax(0, 100)] public UInt32 DmcVolume { get; set; } = 100;
-		[Reactive] [MinMax(0, 100)] public UInt32 FdsVolume { get; set; } = 100;
-		[Reactive] [MinMax(0, 100)] public UInt32 Mmc5Volume { get; set; } = 100;
-		[Reactive] [MinMax(0, 100)] public UInt32 Vrc6Volume { get; set; } = 100;
-		[Reactive] [MinMax(0, 100)] public UInt32 Vrc7Volume { get; set; } = 100;
-		[Reactive] [MinMax(0, 100)] public UInt32 Namco163Volume { get; set; } = 100;
-		[Reactive] [MinMax(0, 100)] public UInt32 Sunsoft5bVolume { get; set; } = 100;
-		[Reactive] [MinMax(0, 100)] public UInt32 EpsmVolume { get; set; } = 100;
+		[Reactive][MinMax(0, 100)] public UInt32 Square1Volume { get; set; } = 100;
+		[Reactive][MinMax(0, 100)] public UInt32 Square2Volume { get; set; } = 100;
+		[Reactive][MinMax(0, 100)] public UInt32 TriangleVolume { get; set; } = 100;
+		[Reactive][MinMax(0, 100)] public UInt32 NoiseVolume { get; set; } = 100;
+		[Reactive][MinMax(0, 100)] public UInt32 DmcVolume { get; set; } = 100;
+		[Reactive][MinMax(0, 100)] public UInt32 FdsVolume { get; set; } = 100;
+		[Reactive][MinMax(0, 100)] public UInt32 Mmc5Volume { get; set; } = 100;
+		[Reactive][MinMax(0, 100)] public UInt32 Vrc6Volume { get; set; } = 100;
+		[Reactive][MinMax(0, 100)] public UInt32 Vrc7Volume { get; set; } = 100;
+		[Reactive][MinMax(0, 100)] public UInt32 Namco163Volume { get; set; } = 100;
+		[Reactive][MinMax(0, 100)] public UInt32 Sunsoft5bVolume { get; set; } = 100;
+		[Reactive][MinMax(0, 100)] public UInt32 EpsmVolume { get; set; } = 100;
 
-		[Reactive] [MinMax(-100, 100)] public Int32 Square1Panning { get; set; } = 0;
-		[Reactive] [MinMax(-100, 100)] public Int32 Square2Panning { get; set; } = 0;
-		[Reactive] [MinMax(-100, 100)] public Int32 TrianglePanning { get; set; } = 0;
-		[Reactive] [MinMax(-100, 100)] public Int32 NoisePanning { get; set; } = 0;
-		[Reactive] [MinMax(-100, 100)] public Int32 DmcPanning { get; set; } = 0;
-		[Reactive] [MinMax(-100, 100)] public Int32 FdsPanning { get; set; } = 0;
-		[Reactive] [MinMax(-100, 100)] public Int32 Mmc5Panning { get; set; } = 0;
-		[Reactive] [MinMax(-100, 100)] public Int32 Vrc6Panning { get; set; } = 0;
-		[Reactive] [MinMax(-100, 100)] public Int32 Vrc7Panning { get; set; } = 0;
-		[Reactive] [MinMax(-100, 100)] public Int32 Namco163Panning { get; set; } = 0;
-		[Reactive] [MinMax(-100, 100)] public Int32 Sunsoft5bPanning { get; set; } = 0;
+		[Reactive][MinMax(-100, 100)] public Int32 Square1Panning { get; set; } = 0;
+		[Reactive][MinMax(-100, 100)] public Int32 Square2Panning { get; set; } = 0;
+		[Reactive][MinMax(-100, 100)] public Int32 TrianglePanning { get; set; } = 0;
+		[Reactive][MinMax(-100, 100)] public Int32 NoisePanning { get; set; } = 0;
+		[Reactive][MinMax(-100, 100)] public Int32 DmcPanning { get; set; } = 0;
+		[Reactive][MinMax(-100, 100)] public Int32 FdsPanning { get; set; } = 0;
+		[Reactive][MinMax(-100, 100)] public Int32 Mmc5Panning { get; set; } = 0;
+		[Reactive][MinMax(-100, 100)] public Int32 Vrc6Panning { get; set; } = 0;
+		[Reactive][MinMax(-100, 100)] public Int32 Vrc7Panning { get; set; } = 0;
+		[Reactive][MinMax(-100, 100)] public Int32 Namco163Panning { get; set; } = 0;
+		[Reactive][MinMax(-100, 100)] public Int32 Sunsoft5bPanning { get; set; } = 0;
 
 		[Reactive] public StereoFilter StereoFilter { get; set; } = StereoFilter.None;
-		[Reactive] [MinMax(0, 100)] public Int32 StereoDelay { get; set; } = 15;
-		[Reactive] [MinMax(-180, 180)] public Int32 StereoPanningAngle { get; set; } = 15;
-		[Reactive] [MinMax(1, 100)] public Int32 StereoCombFilterDelay { get; set; } = 5;
-		[Reactive] [MinMax(1, 200)] public Int32 StereoCombFilterStrength { get; set; } = 100;
+		[Reactive][MinMax(0, 100)] public Int32 StereoDelay { get; set; } = 15;
+		[Reactive][MinMax(-180, 180)] public Int32 StereoPanningAngle { get; set; } = 15;
+		[Reactive][MinMax(1, 100)] public Int32 StereoCombFilterDelay { get; set; } = 5;
+		[Reactive][MinMax(1, 200)] public Int32 StereoCombFilterStrength { get; set; } = 100;
 
 		//Misc
 		[Reactive] public bool BreakOnCrash { get; set; } = false;
@@ -145,13 +141,13 @@ namespace Mesen.Config
 				Port1D = Port1D.ToInterop(),
 
 				Port2 = Port2.ToInterop(),
-				
+
 				ExpPort = ExpPort.ToInterop(),
 				ExpPortA = ExpPortA.ToInterop(),
 				ExpPortB = ExpPortB.ToInterop(),
 				ExpPortC = ExpPortC.ToInterop(),
 				ExpPortD = ExpPortD.ToInterop(),
-				
+
 				MapperInput = MapperInput.ToInterop(),
 
 				LightDetectionRadius = LightDetectionRadius,
@@ -184,6 +180,7 @@ namespace Mesen.Config
 				AllowInvalidInput = AllowInvalidInput,
 				DisableGameGenieBusConflicts = DisableGameGenieBusConflicts,
 				DisableFlashSaves = DisableFlashSaves,
+				EnableFlashDelays = EnableFlashDelays,
 
 				EnableOamDecay = EnableOamDecay,
 				EnablePpuOamRowCorruption = EnablePpuOamRowCorruption,
@@ -308,7 +305,7 @@ namespace Mesen.Config
 		[MarshalAs(UnmanagedType.I1)] public bool RemoveSpriteLimit;
 		[MarshalAs(UnmanagedType.I1)] public bool AdaptiveSpriteLimit;
 		[MarshalAs(UnmanagedType.I1)] public bool EnablePalBorders;
-		
+
 		[MarshalAs(UnmanagedType.I1)] public bool UseCustomVsPalette;
 
 		public InteropOverscanDimensions NtscOverscan;
@@ -319,6 +316,7 @@ namespace Mesen.Config
 		[MarshalAs(UnmanagedType.I1)] public bool AllowInvalidInput;
 		[MarshalAs(UnmanagedType.I1)] public bool DisableGameGenieBusConflicts;
 		[MarshalAs(UnmanagedType.I1)] public bool DisableFlashSaves;
+		[MarshalAs(UnmanagedType.I1)] public bool EnableFlashDelays;
 
 		[MarshalAs(UnmanagedType.I1)] public bool EnableOamDecay;
 		[MarshalAs(UnmanagedType.I1)] public bool EnablePpuOamRowCorruption;

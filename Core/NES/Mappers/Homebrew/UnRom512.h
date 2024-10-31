@@ -27,7 +27,7 @@ protected:
 
 	void InitMapper() override
 	{
-		_flash.reset(new FlashSST39SF040(_prgRom, _prgSize));
+		_flash.reset(new FlashSST39SF040(_console, _prgRom, _prgSize));
 		SelectPrgPage(0, 0);
 		SelectPrgPage(1, -1);
 
