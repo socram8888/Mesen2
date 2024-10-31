@@ -107,4 +107,9 @@ protected:
 			_flash->Write((_prgReg << 15) | (addr & 0x7FFF), value);
 		}
 	}
+
+	void Reset(bool softReset) override
+	{
+		_flash->Reset();
+	}
 };

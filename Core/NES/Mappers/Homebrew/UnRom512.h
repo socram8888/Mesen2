@@ -135,4 +135,9 @@ protected:
 			_flash->Write((addr & 0x3FFF) | (_prgBank << 14), value);
 		}
 	}
+
+	void Reset(bool softReset) override
+	{
+		_flash->Reset();
+	}
 };

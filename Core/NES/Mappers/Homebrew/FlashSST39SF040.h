@@ -36,6 +36,12 @@ private:
 		}
 	}
 
+	void ResetState()
+	{
+		_mode = ChipMode::WaitingForCommand;
+		_cycle = 0;
+	}
+
 protected:
 	void Serialize(Serializer& s)
 	{
@@ -54,6 +60,13 @@ public:
 		_size = size;
 	}
 
+	void Reset()
+	{
+		ResetState();
+		_wipEndCpuCycle = 0;
+		_softwareId = false;
+	}
+
 	int16_t Read(uint32_t addr)
 	{
 		if(_softwareId) {
@@ -68,12 +81,6 @@ public:
 			return _wipReply;
 		}
 		return -1;
-	}
-
-	void ResetState()
-	{
-		_mode = ChipMode::WaitingForCommand;
-		_cycle = 0;
 	}
 
 	void Write(uint32_t addr, uint8_t value)

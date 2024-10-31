@@ -101,4 +101,9 @@ protected:
 			_emu->GetBatteryManager()->SaveBattery(".ips", ipsData.data(), (uint32_t)ipsData.size());
 		}
 	}
+
+	void Reset(bool softReset) override
+	{
+		_flash->Reset();
+	}
 };
