@@ -29,7 +29,7 @@ protected:
 		AddRegisterRange(0x7000, 0x7FFF, MemoryOperation::Any);
 		AddRegisterRange(0x8000, 0xFFFF, MemoryOperation::Any);
 
-		_flash.reset(new FlashSST39SF040(_prgRom, _prgSize));
+		_flash.reset(new FlashSST39SF040(_console, _prgRom, _prgSize));
 		
 		WriteRegister(0x5000, GetPowerOnByte());
 
@@ -106,5 +106,10 @@ protected:
 		} else {
 			_flash->Write((_prgReg << 15) | (addr & 0x7FFF), value);
 		}
+	}
+
+	void Reset(bool softReset) override
+	{
+		_flash->Reset();
 	}
 };
