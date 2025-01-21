@@ -78,10 +78,10 @@ void Spc::Reset()
 	_state.OutputReg[3] = 0;
 
 	//Reset the values the SPC can read from the port, too (not doing this freezes Ranma Chounai Gekitou Hen on reset)
-	_state.CpuRegs[0] = 0;
-	_state.CpuRegs[1] = 0;
-	_state.CpuRegs[2] = 0;
-	_state.CpuRegs[3] = 0;
+	_state.NewCpuRegs[0] = _state.CpuRegs[0] = 0;
+	_state.NewCpuRegs[1] = _state.CpuRegs[1] = 0;
+	_state.NewCpuRegs[2] = _state.CpuRegs[2] = 0;
+	_state.NewCpuRegs[3] = _state.CpuRegs[3] = 0;
 
 	_state.RomEnabled = true;
 	_state.Cycle = 0;
@@ -307,9 +307,11 @@ void Spc::Write(uint16_t addr, uint8_t value, MemoryOperationType type)
 		case 0xF1:
 			if(value & SpcControlFlags::ClearPortsA) {
 				_state.CpuRegs[0] = _state.CpuRegs[1] = 0;
+				_state.NewCpuRegs[0] = _state.NewCpuRegs[1] = 0;
 			}
 			if(value & SpcControlFlags::ClearPortsB) {
 				_state.CpuRegs[2] = _state.CpuRegs[3] = 0;
+				_state.NewCpuRegs[2] = _state.NewCpuRegs[3] = 0;
 			}
 
 			_state.Timer0.SetEnabled((value & SpcControlFlags::Timer0) != 0);
@@ -353,7 +355,21 @@ uint8_t Spc::CpuReadRegister(uint16_t addr)
 void Spc::CpuWriteRegister(uint32_t addr, uint8_t value)
 {
 	Run();
-	_state.CpuRegs[addr & 0x03] = value;
+	if(_state.NewCpuRegs[addr & 0x03] != value) {
+		_state.NewCpuRegs[addr & 0x03] = value;
+
+		//If the CPU's write lands in the first half of the SPC cycle (each cycle is 2 clocks) then the SPC 
+		//can see the new value immediately, otherwise it only sees the new value on the following cycle.
+		//The delay is needed for Kishin Kishin Douji Zenki to boot.
+		//However, always delaying to the next SPC cycle causes Kawasaki Superbike Challenge to freeze on boot.
+		//Delaying only when the write occurs in the SPC cycle's second half allows both games to work (at the default 32040hz.)
+		//This solution behaves as if the CPU values were latched/updated every 2mhz tick (which matches the SPC's input clock)
+		if(_memoryManager->GetMasterClock() * _clockRatio - _state.Cycle <= 1) {
+			_state.CpuRegs[addr & 0x03] = value;
+		} else {
+			_pendingCpuRegUpdate = true;
+		}
+	}
 }
 
 uint8_t Spc::DspReadRam(uint16_t addr)
@@ -371,37 +387,6 @@ void Spc::DspWriteRam(uint16_t addr, uint8_t value)
 	_emu->ProcessMemoryWrite<CpuType::Spc, 1, MemoryAccessFlags::DspAccess>(addr, value, MemoryOperationType::Write);
 #endif
 	_ram[addr] = value;
-}
-
-void Spc::Run()
-{
-	if(!_enabled) {
-		//Used to temporarily disable the SPC when overclocking is enabled
-		return;
-	} else if(_state.StopState != SnesCpuStopState::Running) {
-		//STOP or SLEEP were executed - execution is stopped forever.
-		_emu->ProcessHaltedCpu<CpuType::Spc>();
-		return;
-	}
-
-	uint64_t targetCycle = (uint64_t)(_memoryManager->GetMasterClock() * _clockRatio);
-	while(_state.Cycle < targetCycle) {
-		ProcessCycle();
-	}
-}
-
-void Spc::ProcessCycle()
-{
-	if(_opStep == SpcOpStep::ReadOpCode) {
-#ifndef DUMMYSPC
-		_emu->ProcessInstruction<CpuType::Spc>();
-#endif 
-		_opCode = GetOpCode();
-		_opStep = SpcOpStep::Addressing;
-		_opSubStep = 0;
-	} else {
-		Exec();
-	}
 }
 
 void Spc::ProcessEndFrame()
@@ -500,6 +485,9 @@ void Spc::Serialize(Serializer &s)
 		}
 
 		SV(_operandA); SV(_operandB); SV(_tmp1); SV(_tmp2); SV(_tmp3); SV(_opCode); SV(_opStep); SV(_opSubStep); SV(_enabled);
+
+		SVArray(_state.NewCpuRegs, 4);
+		SV(_pendingCpuRegUpdate);
 	}
 }
 

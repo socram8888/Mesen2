@@ -70,6 +70,7 @@ namespace Mesen.Debugger.ViewModels
 
 		private DebugSpriteInfo[] _spriteList = Array.Empty<DebugSpriteInfo>();
 		private UInt32[] _spritePreviews = Array.Empty<UInt32>();
+		private bool _refreshPending;
 
 		[Obsolete("For designer only")]
 		public SpriteViewerViewModel() : this(CpuType.Snes, new PictureViewer(), new Grid(), new Control(), null) { }
@@ -146,29 +147,29 @@ namespace Mesen.Debugger.ViewModels
 				return;
 			}
 
-			DebugShortcutManager.CreateContextMenu(picViewer, new List<object> {
+			AddDisposables(DebugShortcutManager.CreateContextMenu(picViewer, new List<object> {
 				GetEditTileAction(wnd),
 				GetViewInMemoryViewerAction(),
 				GetViewInTileViewerAction(),
 				GetCopyHdPackFormatActionSeparator(),
 				GetCopyHdPackFormatAction()
-			});
+			}));
 
-			DebugShortcutManager.CreateContextMenu(_spriteGrid, new List<object> {
+			AddDisposables(DebugShortcutManager.CreateContextMenu(_spriteGrid, new List<object> {
 				GetEditTileAction(wnd),
 				GetViewInMemoryViewerAction(),
 				GetViewInTileViewerAction(),
 				GetCopyHdPackFormatActionSeparator(),
 				GetCopyHdPackFormatAction()
-			});
+			}));
 
-			DebugShortcutManager.CreateContextMenu(listView, new List<object> {
+			AddDisposables(DebugShortcutManager.CreateContextMenu(listView, new List<object> {
 				GetEditTileAction(wnd),
 				GetViewInMemoryViewerAction(),
 				GetViewInTileViewerAction(),
 				GetCopyHdPackFormatActionSeparator(),
 				GetCopyHdPackFormatAction()
-			});
+			}));
 
 			AddDisposable(this.WhenAnyValue(x => x.SelectedSprite).Subscribe(x => {
 				UpdateSelectionPreview();
@@ -208,7 +209,11 @@ namespace Mesen.Debugger.ViewModels
 							sprite.RealWidth / size.Width,
 							sprite.Format,
 							sprite.Palette + paletteOffset,
-							wnd);
+							wnd,
+							CpuType,
+							RefreshTiming.Config.RefreshScanline,
+							RefreshTiming.Config.RefreshCycle
+						);
 					}
 				}
 			};
@@ -530,72 +535,87 @@ namespace Mesen.Debugger.ViewModels
 
 		private void RefreshTab()
 		{
+			if(_refreshPending) {
+				return;
+			}
+
+			_refreshPending = true;
 			Dispatcher.UIThread.Post(() => {
-				lock(_updateLock) {
-					_coreData.CopyTo(_data);
-				}
-
-				if(_data.PpuState == null || _data.Palette == null || _data.PpuToolsState == null) {
-					return;
-				}
-
-				GetSpritePreviewOptions options = new GetSpritePreviewOptions() {
-					Background = Config.Background
-				};
-
-				DebugSpritePreviewInfo previewInfo = DebugApi.GetSpritePreviewInfo(CpuType, options, _data.PpuState, _data.PpuToolsState);
-				InitBitmap((int)previewInfo.Width, (int)previewInfo.Height);
-
-				UInt32[] palette = _data.Palette.Value.GetRgbPalette();
-
-				LeftClipSize = Config.ShowOffscreenRegions ? 0 : (int)previewInfo.VisibleX;
-				RightClipSize = Config.ShowOffscreenRegions ? 0 : (int)(previewInfo.Width - (previewInfo.VisibleWidth + previewInfo.VisibleX));
-				TopClipSize = Config.ShowOffscreenRegions ? 0 : (int)previewInfo.VisibleY;
-				BottomClipSize = Config.ShowOffscreenRegions ? 0 : (int)(previewInfo.Height - (previewInfo.VisibleHeight + previewInfo.VisibleY));
-
-				using(var framebuffer = ViewerBitmap.Lock(true)) {
-					DebugApi.GetSpriteList(ref _spriteList, ref _spritePreviews, CpuType, options, _data.PpuState, _data.PpuToolsState, _data.Vram, _data.SpriteRam, palette, framebuffer.FrameBuffer.Address);
-				}
-
-				InitPreviews(_spriteList, _spritePreviews, previewInfo);
-
-				if(Config.ShowOutline) {
-					List<Rect> spriteRects = new List<Rect>();
-					foreach(SpritePreviewModel sprite in SpritePreviews) {
-						(Rect mainRect, Rect alt1, Rect alt2, Rect alt3) = sprite.GetPreviewRect();
-						spriteRects.Add(mainRect);
-						if(alt1 != default) {
-							spriteRects.Add(alt1);
-						}
-						if(alt2 != default) {
-							spriteRects.Add(alt2);
-						}
-						if(alt3 != default) {
-							spriteRects.Add(alt3);
-						}
-					}
-					ViewerBitmap.HighlightRects = spriteRects;
-				} else {
-					ViewerBitmap.HighlightRects = null;
-				}
-				
-				ViewerBitmap.Invalidate();
-
-				int selectedIndex = SelectedSprite?.SpriteIndex ?? -1;
-				if(selectedIndex >= 0 && selectedIndex < SpritePreviews.Count) {
-					SelectedSprite = SpritePreviews[selectedIndex];
-					UpdateSelectionPreview();
-				} else {
-					SelectedSprite = null;
-				}
-
-				ListView.RefreshList();
-
-				UpdateTooltips();
-				UpdateSelection(SelectedSprite);
-
-				UpdateMouseOverRect();
+				InternalRefreshTab();
+				_refreshPending = false;
 			});
+		}
+
+		private void InternalRefreshTab()
+		{
+			if(Disposed) {
+				return;
+			}
+
+			lock(_updateLock) {
+				_coreData.CopyTo(_data);
+			}
+
+			if(_data.PpuState == null || _data.Palette == null || _data.PpuToolsState == null) {
+				return;
+			}
+
+			GetSpritePreviewOptions options = new GetSpritePreviewOptions() {
+				Background = Config.Background
+			};
+
+			DebugSpritePreviewInfo previewInfo = DebugApi.GetSpritePreviewInfo(CpuType, options, _data.PpuState, _data.PpuToolsState);
+			InitBitmap((int)previewInfo.Width, (int)previewInfo.Height);
+
+			UInt32[] palette = _data.Palette.Value.GetRgbPalette();
+
+			LeftClipSize = Config.ShowOffscreenRegions ? 0 : (int)previewInfo.VisibleX;
+			RightClipSize = Config.ShowOffscreenRegions ? 0 : (int)(previewInfo.Width - (previewInfo.VisibleWidth + previewInfo.VisibleX));
+			TopClipSize = Config.ShowOffscreenRegions ? 0 : (int)previewInfo.VisibleY;
+			BottomClipSize = Config.ShowOffscreenRegions ? 0 : (int)(previewInfo.Height - (previewInfo.VisibleHeight + previewInfo.VisibleY));
+
+			using(var framebuffer = ViewerBitmap.Lock(true)) {
+				DebugApi.GetSpriteList(ref _spriteList, ref _spritePreviews, CpuType, options, _data.PpuState, _data.PpuToolsState, _data.Vram, _data.SpriteRam, palette, framebuffer.FrameBuffer.Address);
+			}
+
+			InitPreviews(_spriteList, _spritePreviews, previewInfo);
+
+			if(Config.ShowOutline) {
+				List<Rect> spriteRects = new List<Rect>();
+				foreach(SpritePreviewModel sprite in SpritePreviews) {
+					(Rect mainRect, Rect alt1, Rect alt2, Rect alt3) = sprite.GetPreviewRect();
+					spriteRects.Add(mainRect);
+					if(alt1 != default) {
+						spriteRects.Add(alt1);
+					}
+					if(alt2 != default) {
+						spriteRects.Add(alt2);
+					}
+					if(alt3 != default) {
+						spriteRects.Add(alt3);
+					}
+				}
+				ViewerBitmap.HighlightRects = spriteRects;
+			} else {
+				ViewerBitmap.HighlightRects = null;
+			}
+				
+			ViewerBitmap.Invalidate();
+
+			int selectedIndex = SelectedSprite?.SpriteIndex ?? -1;
+			if(selectedIndex >= 0 && selectedIndex < SpritePreviews.Count) {
+				SelectedSprite = SpritePreviews[selectedIndex];
+				UpdateSelectionPreview();
+			} else {
+				SelectedSprite = null;
+			}
+
+			ListView.RefreshList();
+
+			UpdateTooltips();
+			UpdateSelection(SelectedSprite);
+
+			UpdateMouseOverRect();
 		}
 
 		private void UpdateSelectionPreview()

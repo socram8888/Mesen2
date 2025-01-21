@@ -21,7 +21,7 @@ private:
 	uint8_t _cycle = 0;
 	uint8_t _softwareId = false;
 	uint64_t _wipEndCpuCycle = 0;
-	uint8_t _wipReply;
+	uint8_t _wipReply = 0;
 
 	//PRG data and size
 	uint8_t* _data = nullptr;

@@ -9,7 +9,7 @@ using System;
 
 namespace Mesen.Debugger.Utilities
 {
-	public class CodeViewerSelectionHandler
+	public class CodeViewerSelectionHandler : IDisposable
 	{
 		private DisassemblyViewer _viewer;
 		private ISelectableModel _model;
@@ -36,6 +36,15 @@ namespace Mesen.Debugger.Utilities
 			_viewer.CodePointerMoved += Viewer_CodePointerMoved;
 			_viewer.PointerWheelChanged += Viewer_PointerWheelChanged;
 			_viewer.KeyDown += Viewer_KeyDown;
+		}
+
+		public void Dispose()
+		{
+			_viewer.PointerExited -= Viewer_PointerExited;
+			_viewer.RowClicked -= Viewer_RowClicked;
+			_viewer.CodePointerMoved -= Viewer_CodePointerMoved;
+			_viewer.PointerWheelChanged -= Viewer_PointerWheelChanged;
+			_viewer.KeyDown -= Viewer_KeyDown;
 		}
 
 		private void Viewer_PointerExited(object? sender, PointerEventArgs e)
@@ -105,6 +114,16 @@ namespace Mesen.Debugger.Utilities
 			if(e.CodeSegment != null && e.Data != null) {
 				_mouseOverCodeLocation = CodeTooltipHelper.GetLocation(e.Data.CpuType, e.CodeSegment);
 				tooltip = CodeTooltipHelper.GetTooltip(e.Data.CpuType, e.CodeSegment);
+				if(tooltip == null && e.Fragment != null && !string.IsNullOrWhiteSpace(e.Fragment.Text)) {
+					//No tooltip was found, try again using the word under the mouse cursor
+					//This is only useful for source view, since the syntax doesn't always
+					//match the format expected by the color highlighting logic, etc.
+					LocationInfo? codeLoc = CodeTooltipHelper.GetLocation(e.Data.CpuType, new CodeSegmentInfo(e.Fragment.Text, CodeSegmentType.Label, default, e.Data));
+					if(codeLoc != null && (codeLoc.RelAddress?.Address >= 0 || codeLoc.AbsAddress?.Address >= 0 || codeLoc.Label != null || codeLoc.Symbol != null)) {
+						tooltip = CodeTooltipHelper.GetCodeAddressTooltip(e.Data.CpuType, codeLoc, !codeLoc.RelAddress.HasValue || codeLoc.RelAddress?.Address < 0);
+					}
+				}
+
 				if(tooltip != null) {
 					TooltipHelper.ShowTooltip(_viewer, tooltip, 15);
 				}

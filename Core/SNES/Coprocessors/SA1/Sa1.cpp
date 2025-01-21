@@ -430,7 +430,9 @@ void Sa1::ProcessInterrupts()
 		_cpu->ClearIrqSource(SnesIrqSource::Coprocessor);
 	}
 
-	_cpu->SetNmiFlag(_state.Sa1NmiRequested && _state.Sa1NmiEnabled);
+	if(_state.Sa1NmiRequested && _state.Sa1NmiEnabled) {
+		_cpu->SetNmiFlag(1);
+	}
 
 	if((_state.CpuIrqRequested && _state.CpuIrqEnabled) || (_state.CharConvIrqFlag && _state.CharConvIrqEnabled)) {
 		_snesCpu->SetIrqSource(SnesIrqSource::Coprocessor);
@@ -789,12 +791,9 @@ uint32_t Sa1::DebugGetInternalRamSize()
 	return Sa1::InternalRamSize;
 }
 
-DebugSa1State Sa1::GetState()
+Sa1State& Sa1::GetState()
 {
-	return {
-		_cpu->GetState(),
-		_state
-	};
+	return _state;
 }
 
 SnesCpuState& Sa1::GetCpuState()

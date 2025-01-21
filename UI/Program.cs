@@ -80,7 +80,6 @@ namespace Mesen
 			if(instance.FirstInstance) {
 				Program.CommandLineArgs = (string[])args.Clone();
 				BuildAvaloniaApp().StartWithClassicDesktopLifetime(args, ShutdownMode.OnMainWindowClose);
-				EmuApi.Release();
 			}
 
 			return 0;
@@ -161,7 +160,7 @@ namespace Mesen
 					.With(new X11PlatformOptions {
 						EnableInputFocusProxy = Environment.GetEnvironmentVariable("XDG_CURRENT_DESKTOP") == "gamescope",
 					 })
-					.With(new AvaloniaNativePlatformOptions { })
+					.With(new AvaloniaNativePlatformOptions { RenderingMode = new AvaloniaNativeRenderingMode[] { AvaloniaNativeRenderingMode.OpenGl, AvaloniaNativeRenderingMode.Software } })
 					.LogToTrace();
 	}
 }

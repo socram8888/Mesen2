@@ -18,7 +18,7 @@ private:
 	bool _hdmaInitPending = false;
 	bool _dmaStartDelay = false;
 	bool _dmaPending = false;
-	uint64_t _dmaStartClock = 0;
+	uint32_t _dmaClockCounter = 0;
 	
 	uint8_t _activeChannel = 0; //Used by debugger's event viewer
 
@@ -48,6 +48,8 @@ public:
 
 	void BeginHdmaTransfer();
 	void BeginHdmaInit();
+
+	__forceinline bool HasPendingTransfer() { return _needToProcess; }
 
 	bool ProcessPendingTransfers();
 

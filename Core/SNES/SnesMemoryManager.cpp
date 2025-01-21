@@ -21,7 +21,10 @@ void SnesMemoryManager::Initialize(SnesConsole *console)
 {
 	_masterClock = 0;
 	_openBus = 0;
+	
 	_cpuSpeed = 8;
+	UpdateExecCallbacks();
+
 	_console = console;
 	_emu = console->GetEmulator();
 	_regs = console->GetInternalRegisters();
@@ -125,6 +128,33 @@ void SnesMemoryManager::GenerateMasterClockTable()
 	}
 }
 
+template<uint8_t clocks>
+void SnesMemoryManager::IncMasterClock()
+{
+	if constexpr(clocks == 2) {
+		Exec();
+	} else if constexpr(clocks == 4) {
+		Exec();
+		Exec();
+	} else if constexpr(clocks == 6) {
+		Exec();
+		Exec();
+		Exec();
+	} else if constexpr(clocks == 8) {
+		Exec();
+		Exec();
+		Exec();
+		Exec();
+	} else if constexpr(clocks == 12) {
+		Exec();
+		Exec();
+		Exec();
+		Exec();
+		Exec();
+		Exec();
+	}
+}
+
 void SnesMemoryManager::IncMasterClock4()
 {
 	Exec();
@@ -156,7 +186,7 @@ void SnesMemoryManager::IncMasterClock40()
 
 void SnesMemoryManager::IncMasterClockStartup()
 {
-	for(int i = 0; i < 182 / 2; i++) {
+	for(int i = 0; i < 186 / 2; i++) {
 		Exec();
 	}
 }
@@ -184,6 +214,7 @@ void SnesMemoryManager::Exec()
 	
 	if((_hClock & 0x03) == 0) {
 		_emu->ProcessPpuCycle<CpuType::Snes>();
+	} else if(_hClock & 0x02) {
 		_regs->ProcessIrqCounters();
 	}
 
@@ -201,9 +232,6 @@ void SnesMemoryManager::ProcessEvent()
 
 		case SnesEventType::DramRefresh:
 			IncMasterClock40();
-			//TODOv2?
-			//_cpu->IncreaseCycleCount<5>();
-
 			if(_ppu->GetScanline() < _ppu->GetVblankStart()) {
 				_nextEvent = SnesEventType::HdmaStart;
 				_nextEventClock = 276 * 4;
@@ -221,11 +249,11 @@ void SnesMemoryManager::ProcessEvent()
 
 		case SnesEventType::EndOfScanline:
 			if(_ppu->ProcessEndOfScanline(_hClock)) {
+				_dramRefreshPosition = 538 - (_masterClock & 0x07);
 				if(_ppu->GetScanline() == 0) {
 					_nextEvent = SnesEventType::HdmaInit;
 					_nextEventClock = 12 + (_masterClock & 0x07);
 				} else {
-					_dramRefreshPosition = 538 - (_masterClock & 0x07);
 					_nextEvent = SnesEventType::DramRefresh;
 					_nextEventClock = _dramRefreshPosition;
 				}
@@ -238,7 +266,7 @@ void SnesMemoryManager::ProcessEvent()
 
 uint8_t SnesMemoryManager::Read(uint32_t addr, MemoryOperationType type)
 {
-	IncrementMasterClockValue(_cpuSpeed - 4);
+	(this->*_execRead)();
 
 	uint8_t value;
 	IMemoryHandler *handler = _mappings.GetHandler(addr);
@@ -261,7 +289,6 @@ uint8_t SnesMemoryManager::Read(uint32_t addr, MemoryOperationType type)
 
 uint8_t SnesMemoryManager::ReadDma(uint32_t addr, bool forBusA)
 {
-	_cpu->DetectNmiSignalEdge();
 	IncMasterClock4();
 
 	uint8_t value;
@@ -314,7 +341,8 @@ void SnesMemoryManager::PeekBlock(uint32_t addr, uint8_t *dest)
 
 void SnesMemoryManager::Write(uint32_t addr, uint8_t value, MemoryOperationType type)
 {
-	IncrementMasterClockValue(_cpuSpeed);
+	(this->*_execWrite)();
+
 	if(_emu->ProcessMemoryWrite<CpuType::Snes>(addr, value, type)) {
 		IMemoryHandler* handler = _mappings.GetHandler(addr);
 		if(handler) {
@@ -329,7 +357,6 @@ void SnesMemoryManager::Write(uint32_t addr, uint8_t value, MemoryOperationType 
 
 void SnesMemoryManager::WriteDma(uint32_t addr, uint8_t value, bool forBusA)
 {
-	_cpu->DetectNmiSignalEdge();
 	IncMasterClock4();
 	if(_emu->ProcessMemoryWrite<CpuType::Snes>(addr, value, MemoryOperationType::DmaWrite)) {
 		IMemoryHandler* handler = _mappings.GetHandler(addr);
@@ -393,7 +420,30 @@ uint8_t SnesMemoryManager::GetCpuSpeed()
 
 void SnesMemoryManager::SetCpuSpeed(uint8_t speed)
 {
-	_cpuSpeed = speed;
+	if(_cpuSpeed != speed) {
+		_cpuSpeed = speed;
+		UpdateExecCallbacks();
+	}
+}
+
+void SnesMemoryManager::UpdateExecCallbacks()
+{
+	switch(_cpuSpeed) {
+		case 6:
+			_execRead = &SnesMemoryManager::IncMasterClock<2>;
+			_execWrite = &SnesMemoryManager::IncMasterClock<6>;
+			break;
+
+		case 8:
+			_execRead = &SnesMemoryManager::IncMasterClock<4>;
+			_execWrite = &SnesMemoryManager::IncMasterClock<8>;
+			break;
+
+		case 12:
+			_execRead = &SnesMemoryManager::IncMasterClock<8>;
+			_execWrite = &SnesMemoryManager::IncMasterClock<12>;
+			break;
+	}
 }
 
 MemoryType SnesMemoryManager::GetMemoryTypeBusA()
@@ -424,4 +474,8 @@ void SnesMemoryManager::Serialize(Serializer &s)
 	SV(_memTypeBusA); SV(_nextEvent); SV(_nextEventClock);
 	SVArray(_workRam, SnesMemoryManager::WorkRamSize);
 	SV(_registerHandlerB);
+
+	if(!s.IsSaving()) {
+		UpdateExecCallbacks();
+	}
 }

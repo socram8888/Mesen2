@@ -16,7 +16,6 @@
 	mc:Ignorable="d"
 	x:Class="Mesen.Debugger.Windows.GoToWindow"
 	Width="320" Height="55"
-	ShowInTaskbar="False"
 	CanResize="False"
 	Name="root"
 	Title="{l:Translate wndTitle}"
@@ -41,7 +40,7 @@
 			<TextBox
 				Name="txtAddress"
 				HorizontalAlignment="Stretch"
-				Text="{Binding Address, ElementName=root}"
+				Text="{Binding Address, ElementName=root, Converter={StaticResource NullTextConverter}}"
 			/>
 		</DockPanel>
 	</DockPanel>

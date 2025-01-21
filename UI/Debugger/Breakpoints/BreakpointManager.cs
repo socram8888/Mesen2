@@ -169,17 +169,17 @@ namespace Mesen.Debugger
 			return false;
 		}
 
-		public static void ToggleBreakpoint(AddressInfo info, CpuType cpuType, bool forceExecBreakpoint = true)
+		public static void ToggleBreakpoint(AddressInfo info, CpuType cpuType)
 		{
 			if(info.Address < 0) {
 				return;
 			}
 
-			Breakpoint? breakpoint = BreakpointManager.GetMatchingForbidBreakpoint(info, cpuType) ?? BreakpointManager.GetMatchingBreakpoint(info, cpuType, forceExecBreakpoint);
+			Breakpoint? breakpoint = BreakpointManager.GetMatchingForbidBreakpoint(info, cpuType) ?? BreakpointManager.GetMatchingBreakpoint(info, cpuType);
 			if(breakpoint != null) {
 				BreakpointManager.RemoveBreakpoint(breakpoint);
 			} else {
-				bool execBreakpoint = forceExecBreakpoint || info.Type.IsRomMemory();
+				bool execBreakpoint = true;
 				bool readWriteBreakpoint = !info.Type.IsRomMemory() || info.Type.IsRelativeMemory();
 				if(info.Type.SupportsCdl()) {
 					CdlFlags cdlData = DebugApi.GetCdlData((uint)info.Address, 1, info.Type)[0];
@@ -232,12 +232,14 @@ namespace Mesen.Debugger
 		{
 			List<InteropBreakpoint> breakpoints = new List<InteropBreakpoint>();
 
+			int id = 0;
 			void toInteropBreakpoints(IEnumerable<Breakpoint> bpList)
 			{
 				foreach(Breakpoint bp in bpList) {
 					if(_activeCpuTypes.Contains(bp.CpuType)) {
-						breakpoints.Add(bp.ToInteropBreakpoint(breakpoints.Count));
+						breakpoints.Add(bp.ToInteropBreakpoint(id));
 					}
+					id++;
 				}
 			}
 
@@ -256,6 +258,8 @@ namespace Mesen.Debugger
 				return _breakpoints[breakpointId];
 			} else if(breakpointId < _breakpoints.Count + Asserts.Count) {
 				return Asserts[breakpointId - _breakpoints.Count];
+			} else if(breakpointId < _breakpoints.Count + Asserts.Count + _temporaryBreakpoints.Count) {
+				return _temporaryBreakpoints[breakpointId - _breakpoints.Count - Asserts.Count];
 			}
 			return null;
 		}

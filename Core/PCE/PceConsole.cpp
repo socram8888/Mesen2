@@ -27,6 +27,10 @@ PceConsole::PceConsole(Emulator* emu)
 	_emu = emu;
 }
 
+PceConsole::~PceConsole()
+{
+}
+
 void PceConsole::Reset()
 {
 	//The PC Engine has no reset button, behave like power cycle
@@ -339,7 +343,7 @@ AddressInfo PceConsole::GetAbsoluteAddress(AddressInfo& relAddress)
 
 AddressInfo PceConsole::GetRelativeAddress(AddressInfo& absAddress, CpuType cpuType)
 {
-	return _memoryManager->GetRelativeAddress(absAddress);
+	return _memoryManager->GetRelativeAddress(absAddress, _cpu->GetState().PC);
 }
 
 PceVideoState PceConsole::GetVideoState()

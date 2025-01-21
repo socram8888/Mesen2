@@ -15,6 +15,7 @@ namespace Mesen.Config
 		[Reactive] public bool AutoLoadMlbFiles { get; set; } = true;
 		[Reactive] public bool AutoLoadCdlFiles { get; set; } = false;
 		[Reactive] public bool AutoLoadSymFiles { get; set; } = true;
+		[Reactive] public bool AutoLoadCdbFiles { get; set; } = true;
 		[Reactive] public bool AutoLoadElfFiles { get; set; } = true;
 		[Reactive] public bool AutoLoadFnsFiles { get; set; } = true;
 
@@ -25,6 +26,8 @@ namespace Mesen.Config
 		[Reactive] public bool ImportSaveRamLabels { get; set; } = true;
 		[Reactive] public bool ImportOtherLabels { get; set; } = true;
 		[Reactive] public bool ImportComments { get; set; } = true;
+		
+		[Reactive] public int TabSize { get; set; } = 4;
 
 		public bool IsMemoryTypeImportEnabled(MemoryType memType)
 		{
@@ -73,6 +76,8 @@ namespace Mesen.Config
 				case MemoryType.PcePrgRom:
 				case MemoryType.SmsPrgRom:
 				case MemoryType.SpcRom:
+				case MemoryType.SufamiTurboFirmware:
+				case MemoryType.SufamiTurboSecondCart:
 				case MemoryType.DspProgramRom:
 				case MemoryType.DspDataRom:
 				case MemoryType.GbBootRom:
@@ -104,11 +109,12 @@ namespace Mesen.Config
 					return ImportWorkRamLabels;
 
 				case MemoryType.SnesSaveRam:
+				case MemoryType.BsxMemoryPack:
+				case MemoryType.SufamiTurboSecondCartRam:
 				case MemoryType.NesSaveRam:
 				case MemoryType.PceSaveRam:
 				case MemoryType.GbCartRam:
 				case MemoryType.SmsCartRam:
-				case MemoryType.BsxMemoryPack:
 				case MemoryType.GbaSaveRam:
 				case MemoryType.WsCartRam:
 					return ImportSaveRamLabels;

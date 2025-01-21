@@ -19,7 +19,29 @@ namespace Mesen.Debugger.Disassembly
 
 		public override bool IsLineActive(CodeLineData line, int lineIndex)
 		{
-			return _model.ActiveAddress.HasValue && _model.ActiveAddress.Value == line.Address;
+			lineIndex += _model.ScrollPosition;
+
+			if(_model.ActiveAddress.HasValue && !line.IsAddressHidden) {
+				if(_model.ActiveAddress.Value == line.Address) {
+					return true;
+				} else if(line.AbsoluteAddress.Address > 0) {
+					AddressInfo relActiveAddr = new AddressInfo() { Address = _model.ActiveAddress.Value, Type = _model.CpuType.ToMemoryType() };
+					AddressInfo absAddr = DebugApi.GetAbsoluteAddress(relActiveAddr);
+					if(absAddr.Address > 0) {
+						if(line.AbsoluteAddress.Address == absAddr.Address && line.AbsoluteAddress.Type == absAddr.Type) {
+							//Relative address doesn't match but the absolute address does - different mirror, mark it as active
+							return true;
+						} else if(_model.SymbolProvider.GetSourceCodeLineInfo(absAddr)?.LineNumber == lineIndex) {
+							//Current line number is associated with this address, mark it as active
+							//This allows C code mappings to display as "active" for each CPU instruction
+							//that's part of a single line of C code
+							return true;
+						}
+					}
+				}
+			}
+
+			return false;
 		}
 
 		public override bool IsLineFocused(CodeLineData line, int lineIndex)
@@ -45,7 +67,7 @@ namespace Mesen.Debugger.Disassembly
 
 		private static Regex _space = new Regex("^[ \t]+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 		private static Regex _comment = new Regex("^//.*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-		private static Regex _keywords = new Regex("^(if|else|static|void|int|short|long|char|unsigned|signed|break|return|continue|switch|case|const|while|do|#define|#pragma|#include){1}([^a-z0-9_-]+|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+		private static Regex _keywords = new Regex("^(if|else|static|extern|inline|void|int|short|long|char|unsigned|signed|uint8_t|int8_t|uint16_t|int16_t|uint32_t|int32_t|uint64_t|int64_t|struct|break|return|continue|switch|case|const|while|do|for|default|#define|#pragma|#include){1}([^a-z0-9_-]+|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 		private static Regex _text = new Regex("^([a-z0-9_]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 		private static Regex _syntax = new Regex("^[]([)!+,.|:<>?&^;{}\"'/*%=#-]{1}", RegexOptions.Compiled);
 		private static Regex _number = new Regex("^(0x[0-9a-f]+|0b[01]+|[0-9]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -62,13 +84,13 @@ namespace Mesen.Debugger.Disassembly
 				while(codeString.Length > 0) {
 					Match m;
 					if((m = _comment.Match(codeString)).Success) {
-						colors.Add(new CodeColor(m.Value, textColor ?? Color.FromUInt32(cfg.CodeCommentColor), CodeSegmentType.Comment, pos));
+						colors.Add(new CodeColor(m.Value, Color.FromUInt32(cfg.CodeCommentColor), CodeSegmentType.Comment, pos));
 					} else if((m = _number.Match(codeString)).Success) {
 						colors.Add(new CodeColor(m.Value, textColor ?? Color.FromUInt32(cfg.CodeImmediateColor), CodeSegmentType.ImmediateValue, pos));
 					} else if((m = _keywords.Match(codeString)).Success) {
-						colors.Add(new CodeColor(m.Groups[1].Value, textColor ?? Color.FromUInt32(cfg.CodeAddressColor), CodeSegmentType.OpCode, pos));
+						colors.Add(new CodeColor(m.Groups[1].Value, textColor ?? Color.FromUInt32(cfg.CodeAddressColor), CodeSegmentType.Token, pos));
 					} else if((m = _text.Match(codeString)).Success) {
-						colors.Add(new CodeColor(m.Groups[1].Value, textColor ?? defaultColor, CodeSegmentType.OpCode, pos));
+						colors.Add(new CodeColor(m.Groups[1].Value, textColor ?? defaultColor, CodeSegmentType.Token, pos));
 					} else if((m = _syntax.Match(codeString)).Success) {
 						colors.Add(new CodeColor(m.Value, textColor ?? Color.FromUInt32(cfg.CodeEffectiveAddressColor), CodeSegmentType.Syntax, pos));
 					} else if((m = _space.Match(codeString)).Success) {

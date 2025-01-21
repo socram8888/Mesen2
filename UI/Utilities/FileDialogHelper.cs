@@ -34,10 +34,12 @@ namespace Mesen.Utilities
 		public const string DbgFileExt = "dbg";
 		public const string ElfFileExt = "elf";
 		public const string SymFileExt = "sym";
+		public const string CdbFileExt = "cdb";
 		public const string MesenLabelExt = "mlb";
 		public const string NesAsmLabelExt = "fns";
 		public const string BinExt = "bin";
 		public const string NesExt = "nes";
+		public const string SufamiTurboExt = "st";
 
 		public static async Task<string?> OpenFile(string? initialFolder, IRenderRoot? parent, params string[] extensions)
 		{
@@ -50,7 +52,7 @@ namespace Mesen.Utilities
 				foreach(string ext in extensions) {
 					if(ext == FileDialogHelper.RomExt) {
 						filter.Add(new FilePickerFileType("All ROM files") { Patterns = new List<string>() { 
-							"*.sfc", "*.fig", "*.smc", "*.bs", "*.spc",
+							"*.sfc", "*.fig", "*.smc", "*.bs", "*.st", "*.spc",
 							"*.nes", "*.fds", "*.unif", "*.unf", "*.studybox", "*.nsf", "*.nsfe",
 							"*.gb", "*.gbc", "*.gbx", "*.gbs",
 							"*.pce", "*.sgx", "*.cue", "*.hes",
@@ -59,7 +61,7 @@ namespace Mesen.Utilities
 							"*.ws", "*.wsc",
 							"*.zip", "*.7z"
 						} });
-						filter.Add(new FilePickerFileType("SNES ROM files") { Patterns = new List<string>() { "*.sfc", "*.fig", "*.smc", "*.bs", "*.spc" } });
+						filter.Add(new FilePickerFileType("SNES ROM files") { Patterns = new List<string>() { "*.sfc", "*.fig", "*.smc", "*.bs", "*.st", "*.spc" } });
 						filter.Add(new FilePickerFileType("NES ROM files") { Patterns = new List<string>() { "*.nes", "*.fds", "*.unif", "*.unf", "*.studybox", "*.nsf", "*.nsfe" } });
 						filter.Add(new FilePickerFileType("GB ROM files") { Patterns = new List<string>() { "*.gb", "*.gbc", "*.gbx", "*.gbs" } });
 						filter.Add(new FilePickerFileType("GBA ROM files") { Patterns = new List<string>() { "*.gba" } });
@@ -69,9 +71,9 @@ namespace Mesen.Utilities
 						filter.Add(new FilePickerFileType("ColecoVision ROM files") { Patterns = new List<string>() { "*.col" } });
 						filter.Add(new FilePickerFileType("WonderSwan ROM files") { Patterns = new List<string>() { "*.ws", "*.wsc" } });
 					} else if(ext == FileDialogHelper.FirmwareExt) {
-						filter.Add(new FilePickerFileType("All firmware files") { Patterns = new List<string>() { "*.sfc", "*.pce", "*.nes", "*.bin", "*.rom", "*.col" } });
+						filter.Add(new FilePickerFileType("All firmware files") { Patterns = new List<string>() { "*.sfc", "*.pce", "*.nes", "*.bin", "*.rom", "*.col", "*.sms", "*.gg", "*.gba" } });
 					} else if(ext == FileDialogHelper.LabelFileExt) {
-						filter.Add(new FilePickerFileType("All label files") { Patterns = new List<string>() { "*.mlb", "*.sym", "*.dbg", "*.fns" } });
+						filter.Add(new FilePickerFileType("All label files") { Patterns = new List<string>() { "*.mlb", "*.sym", "*.dbg", "*.fns", "*.elf", "*.cdb" } });
 					} else {
 						filter.Add(new FilePickerFileType(ext.ToUpper() + " files") { Patterns = new List<string>() { "*." + ext } });
 					}

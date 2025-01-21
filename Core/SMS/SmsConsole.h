@@ -30,6 +30,7 @@ private:
 	RomFormat _romFormat = RomFormat::Sms;
 	SmsModel _model = SmsModel::Sms;
 	ConsoleRegion _region = ConsoleRegion::Ntsc;
+	string _filename;
 	
 	void UpdateRegion(bool forceUpdate);
 
@@ -38,6 +39,7 @@ public:
 	static vector<string> GetSupportedSignatures() { return { }; }
 
 	SmsConsole(Emulator* emu);
+	virtual ~SmsConsole();
 
 	Emulator* GetEmulator() { return _emu; }
 	SmsCpu* GetCpu() { return _cpu.get(); }

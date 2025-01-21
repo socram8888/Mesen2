@@ -23,6 +23,8 @@ using System.Collections.Generic;
 using Mesen.Controls;
 using Mesen.Localization;
 using System.Diagnostics;
+using Avalonia.VisualTree;
+using System.Text;
 
 namespace Mesen.Windows
 {
@@ -34,7 +36,7 @@ namespace Mesen.Windows
 		private NotificationListener? _listener = null;
 		private ShortcutHandler _shortcutHandler;
 
-		private MouseManager _mouseManager;
+		private MouseManager? _mouseManager = null;
 		private ContentControl _audioPlayer;
 		private MainMenuView _mainMenu;
 		private CommandLineHelper? _cmdLine;
@@ -42,7 +44,8 @@ namespace Mesen.Windows
 		private bool _testModeEnabled;
 		private bool _needResume = false;
 		private bool _needCloseValidation = true;
-		
+		private bool _isClosing = false;
+
 		private bool _preventFullscreenToggle = false;
 
 		private Panel _rendererPanel;
@@ -103,7 +106,6 @@ namespace Mesen.Windows
 			_softwareRenderer = this.GetControl<SoftwareRendererView>("SoftwareRenderer");
 			_audioPlayer = this.GetControl<ContentControl>("AudioPlayer");
 			_mainMenu = this.GetControl<MainMenuView>("MainMenu");
-			_mouseManager = new MouseManager(this, _usesSoftwareRenderer ? _softwareRenderer : _renderer, _mainMenu, _usesSoftwareRenderer);
 			ConfigManager.Config.MainWindow.LoadWindowSettings(this);
 
 #if DEBUG
@@ -159,8 +161,10 @@ namespace Mesen.Windows
 				_timerBackgroundFlag.Stop();
 				EmuApi.Stop();
 				_listener?.Dispose();
+				EmuApi.Release();
 				ConfigManager.Config.MainWindow.SaveWindowSettings(this);
 				ConfigManager.Config.Save();
+				_isClosing = true;
 			}
 		}
 
@@ -175,7 +179,7 @@ namespace Mesen.Windows
 		protected override void OnClosed(EventArgs e)
 		{
 			base.OnClosed(e);
-			_mouseManager.Dispose();
+			_mouseManager?.Dispose();
 		}
 
 		private void OnDrop(object? sender, DragEventArgs e)
@@ -199,6 +203,8 @@ namespace Mesen.Windows
 				return;
 			}
 
+			_mouseManager = new MouseManager(this, _usesSoftwareRenderer ? _softwareRenderer : _renderer, _mainMenu, _usesSoftwareRenderer);
+
 			ConfigManager.Config.InitializeFontDefaults();
 			ConfigManager.Config.Preferences.ApplyFontOptions();
 			ConfigManager.Config.Debug.Fonts.ApplyConfig();
@@ -206,7 +212,14 @@ namespace Mesen.Windows
 			_timerBackgroundFlag.Interval = TimeSpan.FromMilliseconds(100);
 			_timerBackgroundFlag.Tick += timerUpdateBackgroundFlag;
 			_timerBackgroundFlag.Start();
-			
+
+			//Give focus to panel to avoid menu being given focus by default
+			this.GetControl<Panel>("RendererPanel").Focus();
+
+			//Focus on the recent games dialog if it's visible
+			//This also enables keyboard/gamepad navigation on the selection screen without having to click it first
+			this.FindDescendantOfType<StateGrid>()?.Focus();
+
 			Task.Run(() => {
 				CommandLineHelper cmdLine = new CommandLineHelper(Program.CommandLineArgs, true);
 				_cmdLine = cmdLine;
@@ -259,6 +272,10 @@ namespace Mesen.Windows
 		{
 			Dispatcher.UIThread.Post(() => {
 				CommandLineHelper cmdLine = new(e.Args, false);
+
+				//Set _cmdLine to allow Lua scripts to be loaded once/if a game is loaded
+				_cmdLine = cmdLine;
+
 				ConfigManager.Config.ApplyConfig();
 				cmdLine.LoadFiles();
 			});
@@ -298,6 +315,9 @@ namespace Mesen.Windows
 					if(!evtParams.IsPowerCycle) {
 						Dispatcher.UIThread.Post(() => {
 							_model.RecentGames.Visible = false;
+							if(IsKeyboardFocusWithin) {
+								this.GetControl<Panel>("RendererPanel").Focus();
+							}
 
 							DispatcherTimer.RunOnce(() => {
 								if(_cmdLine != null) {
@@ -324,6 +344,9 @@ namespace Mesen.Windows
 				case ConsoleNotificationType.GameResumed:
 					Dispatcher.UIThread.Post(() => {
 						_model.RecentGames.Visible = false;
+						if(IsKeyboardFocusWithin) {
+							this.GetControl<Panel>("RendererPanel").Focus();
+						}
 					});
 					break;
 
@@ -353,7 +376,7 @@ namespace Mesen.Windows
 					});
 					break;
 
-				case ConsoleNotificationType.MissingFirmware:
+				case ConsoleNotificationType.MissingFirmware: {
 					MissingFirmwareMessage msg = Marshal.PtrToStructure<MissingFirmwareMessage>(e.Parameter);
 					TaskCompletionSource tcs = new TaskCompletionSource();
 					Dispatcher.UIThread.Post(async () => {
@@ -362,6 +385,25 @@ namespace Mesen.Windows
 					});
 					tcs.Task.Wait();
 					break;
+				}
+
+				case ConsoleNotificationType.SufamiTurboFilePrompt: {
+					SufamiTurboFilePromptMessage msg = Marshal.PtrToStructure<SufamiTurboFilePromptMessage>(e.Parameter);
+					TaskCompletionSource tcs = new TaskCompletionSource();
+					Dispatcher.UIThread.Post(async () => {
+						if(await MesenMsgBox.Show(this, "PromptLoadSufamiTurbo", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes) {
+							string? selectedFile = await FileDialogHelper.OpenFile(null, this, FileDialogHelper.SufamiTurboExt);
+							if(selectedFile != null) {
+								byte[] file = Encoding.UTF8.GetBytes(selectedFile);
+								Array.Copy(file, msg.Filename, file.Length);
+								Marshal.StructureToPtr<SufamiTurboFilePromptMessage>(msg, e.Parameter, false);
+							}
+						}
+						tcs.SetResult();
+					});
+					tcs.Task.Wait();
+					break;
+				}
 
 				case ConsoleNotificationType.BeforeGameLoad:
 					Dispatcher.UIThread.Post(() => {
@@ -427,23 +469,22 @@ namespace Mesen.Windows
 		private void InternalSetScale(double scale)
 		{
 			double dpiScale = LayoutHelper.GetLayoutScale(this);
-			scale /= dpiScale;
+			double aspectRatio = EmuApi.GetAspectRatio();
 
 			FrameInfo screenSize = EmuApi.GetBaseScreenSize();
 			if(WindowState == WindowState.Normal) {
 				_rendererSize = new Size();
 
-				double aspectRatio = EmuApi.GetAspectRatio();
 
 				//When menu is set to auto-hide, don't count its height when calculating the window's final size
 				double menuHeight = ConfigManager.Config.Preferences.AutoHideMenu ? 0 : _mainMenu.Bounds.Height;
 
-				double width = Math.Max(MinWidth, Math.Round(screenSize.Height * aspectRatio) * scale);
-				double height = Math.Max(MinHeight, screenSize.Height * scale);
+				double width = Math.Max(MinWidth, Math.Round(screenSize.Height * aspectRatio * scale) / dpiScale);
+				double height = Math.Max(MinHeight, screenSize.Height * scale / dpiScale);
 				ClientSize = new Size(width, height + menuHeight + _audioPlayer.Bounds.Height);
 				ResizeRenderer();
 			} else if(WindowState == WindowState.Maximized || WindowState == WindowState.FullScreen) {
-				_rendererSize = new Size(Math.Floor(screenSize.Width * scale), Math.Floor(screenSize.Height * scale));
+				_rendererSize = new Size(Math.Round(screenSize.Width * scale * aspectRatio) / dpiScale, Math.Round(screenSize.Height * scale) / dpiScale);
 				ResizeRenderer();
 			}
 		}
@@ -457,26 +498,30 @@ namespace Mesen.Windows
 		private void RendererPanel_LayoutUpdated(object? sender, EventArgs e)
 		{
 			double aspectRatio = EmuApi.GetAspectRatio();
+			double dpiScale = LayoutHelper.GetLayoutScale(this);
 
 			Size finalSize = _rendererSize == default ? _rendererPanel.Bounds.Size : _rendererSize;
 			double height = finalSize.Height;
 			double width = finalSize.Height * aspectRatio;
-			if(width > finalSize.Width) {
+			if(Math.Round(width) > Math.Round(finalSize.Width)) {
+				//Use renderer width to calculate the height instead of the opposite
+				//when current window dimensions would cause cropping horizontally
+				//if the screen width was calculated based on the height.
 				width = finalSize.Width;
 				height = width / aspectRatio;
 			}
 
 			if(ConfigManager.Config.Video.FullscreenForceIntegerScale && VisualRoot is Window wnd && (wnd.WindowState == WindowState.FullScreen || wnd.WindowState == WindowState.Maximized)) {
 				FrameInfo baseSize = EmuApi.GetBaseScreenSize();
-				double scale = height * LayoutHelper.GetLayoutScale(this) / baseSize.Height;
+				double scale = height * dpiScale / baseSize.Height;
 				if(scale != Math.Floor(scale)) {
-					height = baseSize.Height * Math.Max(1, Math.Floor(scale / LayoutHelper.GetLayoutScale(this)));
+					height = baseSize.Height * Math.Max(1, Math.Floor(scale / dpiScale));
 					width = height * aspectRatio;
 				}
 			}
 
-			uint realWidth = (uint)Math.Round(width * LayoutHelper.GetLayoutScale(this));
-			uint realHeight = (uint)Math.Round(height * LayoutHelper.GetLayoutScale(this));
+			uint realWidth = (uint)Math.Round(width * dpiScale);
+			uint realHeight = (uint)Math.Round(height * dpiScale);
 			EmuApi.SetRendererSize(realWidth, realHeight);
 			_model.RendererSize = new Size(realWidth, realHeight);
 
@@ -648,8 +693,10 @@ namespace Mesen.Windows
 
 		private void OnActiveChanged()
 		{
-			ConfigApi.SetEmulationFlag(EmulationFlags.InBackground, !IsActive);
-			InputApi.ResetKeyState();
+			if(!_isClosing) {
+				ConfigApi.SetEmulationFlag(EmulationFlags.InBackground, !IsActive);
+				InputApi.ResetKeyState();
+			}
 		}
 
 		private void timerUpdateBackgroundFlag(object? sender, EventArgs e)

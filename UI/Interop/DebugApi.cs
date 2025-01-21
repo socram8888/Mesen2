@@ -220,7 +220,7 @@ namespace Mesen.Interop
 		[DllImport(DllPath)] public static extern AddressInfo GetAbsoluteAddress(AddressInfo relAddress);
 		[DllImport(DllPath)] public static extern AddressInfo GetRelativeAddress(AddressInfo absAddress, CpuType cpuType);
 
-		[DllImport(DllPath)] public static extern void SetLabel(uint address, MemoryType memType, string label, string comment);
+		[DllImport(DllPath)] public static extern void SetLabel(uint address, MemoryType memType, [MarshalAs(UnmanagedType.LPUTF8Str)] string label, [MarshalAs(UnmanagedType.LPUTF8Str)] string comment);
 		[DllImport(DllPath)] public static extern void ClearLabels();
 
 		[DllImport(DllPath)] public static extern void SetBreakpoints([MarshalAs(UnmanagedType.LPArray, SizeParamIndex = 1)] InteropBreakpoint[] breakpoints, UInt32 length);
@@ -549,6 +549,7 @@ namespace Mesen.Interop
 				CpuType.Sa1 => state is SnesCpuState,
 				CpuType.Gsu => state is GsuState,
 				CpuType.Cx4 => state is Cx4State,
+				CpuType.St018 => state is ArmV3CpuState,
 				CpuType.Gameboy => state is GbCpuState,
 				CpuType.Nes => state is NesCpuState,
 				CpuType.Pce => state is PceCpuState,
@@ -590,6 +591,7 @@ namespace Mesen.Interop
 		NecDspMemory,
 		GsuMemory,
 		Cx4Memory,
+		St018Memory,
 		GameboyMemory,
 		NesMemory,
 		NesPpuMemory,
@@ -616,6 +618,12 @@ namespace Mesen.Interop
 		Cx4DataRam,
 		BsxPsRam,
 		BsxMemoryPack,
+		St018PrgRom,
+		St018DataRom,
+		St018WorkRam,
+		SufamiTurboFirmware,
+		SufamiTurboSecondCart,
+		SufamiTurboSecondCartRam,
 
 		GbPrgRom,
 		GbWorkRam,
@@ -1480,6 +1488,7 @@ namespace Mesen.Interop
 		public UInt32 Target;
 		public AddressInfo AbsTarget;
 		public UInt32 Return;
+		public UInt32 ReturnStackPointer;
 		public AddressInfo AbsReturn;
 		public StackFrameFlags Flags;
 	};
@@ -1499,6 +1508,7 @@ namespace Mesen.Interop
 		Sa1,
 		Gsu,
 		Cx4,
+		St018,
 		Gameboy,
 		Nes,
 		Pce,
@@ -1617,6 +1627,7 @@ namespace Mesen.Interop
 		public UInt64 MinCycles;
 		public UInt64 MaxCycles;
 		public AddressInfo Address;
+		public StackFrameFlags Flags;
 
 		public UInt64 GetAvgCycles()
 		{

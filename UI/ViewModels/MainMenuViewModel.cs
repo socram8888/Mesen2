@@ -584,7 +584,7 @@ namespace Mesen.ViewModels
 
 						case ConsoleType.Sms:
 							switch(MainWindow.RomInfo.Format) {
-								default: case RomFormat.Sms: ConfigManager.Config.Sms.GameGearRegion = region; break;
+								default: case RomFormat.Sms: ConfigManager.Config.Sms.Region = region; break;
 								case RomFormat.GameGear: ConfigManager.Config.Sms.GameGearRegion = region; break;
 								case RomFormat.ColecoVision: ConfigManager.Config.Cv.Region = region; break;
 							}
@@ -945,6 +945,12 @@ namespace Mesen.ViewModels
 					Shortcut = () => ConfigManager.Config.Debug.Shortcuts.Get(DebuggerShortcut.OpenSa1Debugger),
 					IsVisible = () => MainWindow.RomInfo.CpuTypes.Contains(CpuType.Sa1),
 					OnClick = () => DebuggerWindow.GetOrOpenWindow(CpuType.Sa1)
+				},
+				new ContextMenuAction() {
+					ActionType = ActionType.OpenSt018Debugger,
+					Shortcut = () => ConfigManager.Config.Debug.Shortcuts.Get(DebuggerShortcut.OpenSt018Debugger),
+					IsVisible = () => MainWindow.RomInfo.CpuTypes.Contains(CpuType.St018),
+					OnClick = () => DebuggerWindow.GetOrOpenWindow(CpuType.St018)
 				},
 				new ContextMenuAction() {
 					ActionType = ActionType.OpenGameboyDebugger,

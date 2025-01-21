@@ -20,6 +20,8 @@ public abstract class WlaDxImporter : ISymbolProvider
 	private static Regex _addrRegex = new Regex(@"^([0-9a-fA-F]{2,4}):([0-9a-fA-F]{4}) ([0-9a-fA-F]{4}):([0-9a-fA-F]{8})", RegexOptions.Compiled);
 	private static Regex _fileV2Regex = new Regex(@"^([0-9a-fA-F]{4}):([0-9a-fA-F]{4}) ([0-9a-fA-F]{8}) (.*)", RegexOptions.Compiled);
 	private static Regex _addrV2Regex = new Regex(@"^([0-9a-fA-F]{8}) ([0-9a-fA-F]{2}):([0-9a-fA-F]{4}) ([0-9a-fA-F]{4}) ([0-9a-fA-F]{4}):([0-9a-fA-F]{4}):([0-9a-fA-F]{8})", RegexOptions.Compiled);
+	private static Regex _filePathRegex = new Regex(@"^(""([^;""]*)""\s*;{0,1}\s*(.*))|(.*)", RegexOptions.Compiled);
+	private static Regex _pceasSourceRegex = new Regex(@"^([0-9a-fA-F]{2}):([0-9a-fA-F]{4}) ([0-9a-fA-F]{8}) ([0-9a-fA-F]{4}):([0-9a-fA-F]{8})", RegexOptions.Compiled);
 
 	private Dictionary<int, SourceFileInfo> _sourceFiles = new();
 	private Dictionary<string, AddressInfo> _addressByLine = new();
@@ -105,6 +107,8 @@ public abstract class WlaDxImporter : ISymbolProvider
 
 		Dictionary<string, CodeLabel> labels = new Dictionary<string, CodeLabel>();
 
+		byte[] cdlData = new byte[DebugApi.GetMemorySize(MemoryType.PcePrgRom)];
+
 		int errorCount = 0;
 		bool isAsar = false;
 
@@ -126,9 +130,8 @@ public abstract class WlaDxImporter : ISymbolProvider
 						if(m.Success) {
 							int bank = Int32.Parse(m.Groups[1].Value, System.Globalization.NumberStyles.HexNumber);
 							int addr = Int32.Parse(m.Groups[2].Value, System.Globalization.NumberStyles.HexNumber);
-							string label = m.Groups[3].Value;
-
-							label = LabelManager.InvalidLabelRegex.Replace(label, "_");
+							string originalLabel = m.Groups[3].Value;
+							string label = LabelManager.InvalidLabelRegex.Replace(originalLabel, "_");
 
 							if(!LabelManager.LabelRegex.IsMatch(label)) {
 								//ignore labels that don't respect the label naming restrictions
@@ -143,7 +146,7 @@ public abstract class WlaDxImporter : ISymbolProvider
 								continue;
 							}
 
-							SymbolInfo symbol = new(label, absAddr);
+							SymbolInfo symbol = new(originalLabel, absAddr);
 							_symbols.Add(symbol);
 
 							string orgLabel = label;
@@ -169,14 +172,14 @@ public abstract class WlaDxImporter : ISymbolProvider
 					}
 				}
 			} else if(str == "[source files]" || str == "[source files v2]") {
-				int file_idx = 1;
-				int path_idx = 3;
+				int fileIndex = 1;
+				int pathIndex = 3;
 				Regex regex = _fileRegex;
 
 				// Conversion of indices for supporting WLA-DX V2
 				if(str == "[source files v2]") {
-					file_idx = 2;
-					path_idx = 4;
+					fileIndex = 2;
+					pathIndex = 4;
 					regex = _fileV2Regex;
 				}
 
@@ -184,30 +187,50 @@ public abstract class WlaDxImporter : ISymbolProvider
 					if(lines[i].Length > 0) {
 						Match m = regex.Match(lines[i]);
 						if(m.Success) {
-							int fileId = Int32.Parse(m.Groups[file_idx].Value, System.Globalization.NumberStyles.HexNumber);
+							int fileId = Int32.Parse(m.Groups[fileIndex].Value, System.Globalization.NumberStyles.HexNumber);
 							//int fileCrc = Int32.Parse(m.Groups[2].Value, System.Globalization.NumberStyles.HexNumber);
-							string filePath = m.Groups[path_idx].Value;
 
-							string fullPath = Path.Combine(basePath, filePath);
-							_sourceFiles[fileId] = new SourceFileInfo(filePath, true, new WlaDxFile() { Data = File.Exists(fullPath) ? File.ReadAllLines(fullPath) : new string[0] });
+							Match fileMatch = _filePathRegex.Match(m.Groups[pathIndex].Value);
+							if(fileMatch.Success) {
+								string filePath = fileMatch.Groups[2].Success ? fileMatch.Groups[2].Value : fileMatch.Groups[4].Value;
+								string comment = fileMatch.Groups[3].Value;
+								string fullPath;
+								if(Path.IsPathFullyQualified(filePath)) {
+									fullPath = filePath;
+								} else {
+									string? srcBasePath = basePath;
+									fullPath = Path.Combine(srcBasePath, filePath);
+									while(!File.Exists(fullPath)) {
+										//Go back up folder structure to attempt to find the file
+										string oldPath = srcBasePath;
+										srcBasePath = Path.GetDirectoryName(srcBasePath);
+										if(srcBasePath == null || srcBasePath == oldPath) {
+											break;
+										}
+										fullPath = Path.Combine(srcBasePath, filePath);
+									}
+								}
+								string[] fileData = File.Exists(fullPath) ? File.ReadAllLines(fullPath) : Array.Empty<string>();
+								_sourceFiles[fileId] = new SourceFileInfo(filePath, true, new WlaDxFile() { Data = fileData });
+							}
 						}
 					} else {
 						break;
 					}
 				}
 			} else if(str == "[addr-to-line mapping]" || str == "[addr-to-line mapping v2]") {
-				int bank_idx = 1;
-				int addr_idx = 2;
-				int field_idx = 3;
-				int line_idx = 4;
+				int bankIndex = 1;
+				int addrIndex = 2;
+				int fieldIndex = 3;
+				int lineIndex = 4;
 				Regex regex = _addrRegex;
 
 				// Conversion of indices for supporting WLA-DX V2
 				if(str == "[addr-to-line mapping v2]") {
-					bank_idx = 2;
-					addr_idx = 3;
-					field_idx = 6;
-					line_idx = 7;
+					bankIndex = 2;
+					addrIndex = 3;
+					fieldIndex = 6;
+					lineIndex = 7;
 					regex = _addrV2Regex;
 				}
 
@@ -215,11 +238,11 @@ public abstract class WlaDxImporter : ISymbolProvider
 					if(lines[i].Length > 0) {
 						Match m = regex.Match(lines[i]);
 						if(m.Success) {
-							int bank = Int32.Parse(m.Groups[bank_idx].Value, System.Globalization.NumberStyles.HexNumber);
-							int addr = (bank << 16) | Int32.Parse(m.Groups[addr_idx].Value, System.Globalization.NumberStyles.HexNumber);
+							int bank = Int32.Parse(m.Groups[bankIndex].Value, System.Globalization.NumberStyles.HexNumber);
+							int addr = (bank << 16) | Int32.Parse(m.Groups[addrIndex].Value, System.Globalization.NumberStyles.HexNumber);
 
-							int fileId = Int32.Parse(m.Groups[field_idx].Value, System.Globalization.NumberStyles.HexNumber);
-							int lineNumber = Int32.Parse(m.Groups[line_idx].Value, System.Globalization.NumberStyles.HexNumber);
+							int fileId = Int32.Parse(m.Groups[fieldIndex].Value, System.Globalization.NumberStyles.HexNumber);
+							int lineNumber = Int32.Parse(m.Groups[lineIndex].Value, System.Globalization.NumberStyles.HexNumber);
 							if(isAsar) {
 								lineNumber--;
 							}
@@ -307,10 +330,52 @@ public class GbWlaDxImporter : WlaDxImporter
 
 public class PceWlaDxImporter : WlaDxImporter
 {
+	private RomFormat _format;
+
+	public PceWlaDxImporter()
+	{
+		_format = EmuApi.GetRomInfo().Format;
+	}
+
 	protected override AddressInfo GetLabelAddress(int bank, int addr)
 	{
-		//TODOv2 RAM labels seem to be missing from .sym file?
-		return new AddressInfo() { Address = bank * 0x2000 + (addr & 0x1FFF), Type = MemoryType.PcePrgRom };
+		if(bank == 0xF8 && bank <= 0xFB) {
+			return new AddressInfo() {
+				Address = (bank - 0xF8) * 0x2000 + (addr & 0x1FFF),
+				Type = MemoryType.PceWorkRam
+			};
+		} else if(bank == 0xF7) {
+			return new AddressInfo() {
+				Address = (addr & 0x1FFF),
+				Type = MemoryType.PceSaveRam
+			};
+		} else if(bank == 0xFF) {
+			return new AddressInfo() {
+				Address = (addr & 0x1FFF),
+				Type = MemoryType.PceMemory
+			};
+		} else if(_format == RomFormat.PceCdRom && (bank >= 0x68 && bank <= 0x7F)) {
+			return new AddressInfo() {
+				Address = (bank - 0x68) * 0x2000 + (addr & 0x1FFF),
+				Type = MemoryType.PceCardRam
+			};	
+		} else if(_format == RomFormat.PceCdRom && (bank >= 0x80 && bank <= 0x87)) {
+			return new AddressInfo() {
+				Address = (bank - 0x80) * 0x2000 + (addr & 0x1FFF),
+				Type = MemoryType.PceCdromRam
+			};
+		} else if(bank > 0xFF) {
+			return new AddressInfo() {
+				Address = (bank - 0x80) * 0x2000 + (addr & 0x1FFF),
+				Type = MemoryType.PcePrgRom
+			};
+		} else if(bank < 0x80) {
+			return new AddressInfo() {
+				Address = bank * 0x2000 + (addr & 0x1FFF),
+				Type = MemoryType.PcePrgRom
+			};
+		}
+		return default;
 	}
 }
 

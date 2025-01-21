@@ -13,11 +13,13 @@
 #include "SNES/Coprocessors/GSU/Gsu.h"
 #include "SNES/Coprocessors/SDD1/Sdd1.h"
 #include "SNES/Coprocessors/CX4/Cx4.h"
+#include "SNES/Coprocessors/ST018/St018.h"
 #include "SNES/Coprocessors/OBC1/Obc1.h"
 #include "SNES/Coprocessors/SPC7110/Spc7110.h"
 #include "SNES/Coprocessors/BSX/BsxCart.h"
 #include "SNES/Coprocessors/BSX/BsxMemoryPack.h"
 #include "SNES/Coprocessors/SGB/SuperGameboy.h"
+#include "SNES/Coprocessors/SufamiTurbo/SufamiTurbo.h"
 #include "Shared/EmuSettings.h"
 #include "Shared/SettingTypes.h"
 #include "Shared/BatteryManager.h"
@@ -63,12 +65,18 @@ unique_ptr<BaseCartridge> BaseCartridge::CreateCartridge(SnesConsole* console, V
 			}
 			cart->LoadRom();
 			cart->_emu->RegisterMemory(MemoryType::SnesPrgRom, cart->_prgRom, cart->_prgRomSize);
+		} else if(fileExt == ".st") {
+			if(cart->LoadSufamiTurbo(romFile)) {
+				return cart;
+			} else {
+				return nullptr;
+			}
 		} else if(fileExt == ".gb" || fileExt == ".gbc" || fileExt == ".gbx") {
 			if(cart->LoadGameboy(romFile)) {
 				return cart;
 			} else {
 				return nullptr;
-			}			
+			}
 		} else {
 			if(romData.size() < 0x8000) {
 				return nullptr;
@@ -87,7 +95,7 @@ unique_ptr<BaseCartridge> BaseCartridge::CreateCartridge(SnesConsole* console, V
 				}
 			} else {
 				cart->LoadRom();
-				cart->EnsureValidPrgRomSize();
+				BaseCartridge::EnsureValidPrgRomSize(cart->_prgRomSize, cart->_prgRom);
 			}
 
 			cart->_emu->RegisterMemory(MemoryType::SnesPrgRom, cart->_prgRom, cart->_prgRomSize);
@@ -99,18 +107,18 @@ unique_ptr<BaseCartridge> BaseCartridge::CreateCartridge(SnesConsole* console, V
 	}
 }
 
-void BaseCartridge::EnsureValidPrgRomSize()
+void BaseCartridge::EnsureValidPrgRomSize(uint32_t& size, uint8_t*& rom)
 {
-	if((_prgRomSize & 0xFFF) != 0) {
+	if((size & 0xFFF) != 0) {
 		//Round up to the next 4kb size, to ensure we have access to all the rom's data
 		//Memory mappings expect a multiple of 4kb to work properly
-		uint32_t orgPrgSize = _prgRomSize;
-		_prgRomSize = (_prgRomSize & ~0xFFF) + 0x1000;
-		uint8_t* expandedPrgRom = new uint8_t[_prgRomSize];
-		memset(expandedPrgRom, 0, _prgRomSize);
-		memcpy(expandedPrgRom, _prgRom, orgPrgSize);
-		delete[] _prgRom;
-		_prgRom = expandedPrgRom;
+		uint32_t orgPrgSize = size;
+		size = (size & ~0xFFF) + 0x1000;
+		uint8_t* expandedPrgRom = new uint8_t[size];
+		memset(expandedPrgRom, 0, size);
+		memcpy(expandedPrgRom, rom, orgPrgSize);
+		delete[] rom;
+		rom = expandedPrgRom;
 	}
 }
 
@@ -403,6 +411,10 @@ void BaseCartridge::SaveBattery()
 	if(_gameboy) {
 		_gameboy->SaveBattery();
 	}
+
+	if(_sufamiTurbo) {
+		_sufamiTurbo->SaveBattery();
+	}
 }
 
 void BaseCartridge::Init(MemoryMappings &mm)
@@ -537,6 +549,9 @@ void BaseCartridge::InitCoprocessor()
 		_coprocessor.reset(new Cx4(_console));
 		_cx4 = dynamic_cast<Cx4*>(_coprocessor.get());
 		_needCoprocSync = true;
+	} else if(_coprocessorType == CoprocessorType::ST018) {
+		_coprocessor.reset(new St018(_console));
+		_st018 = dynamic_cast<St018*>(_coprocessor.get());
 	} else if(_coprocessorType == CoprocessorType::OBC1 && _saveRamSize > 0) {
 		_coprocessor.reset(new Obc1(_console, _saveRam, _saveRamSize));
 	} else if(_coprocessorType == CoprocessorType::SGB) {
@@ -551,7 +566,11 @@ bool BaseCartridge::MapSpecificCarts(MemoryMappings &mm)
 {
 	string name = GetCartName();
 	string code = GetGameCode();
-	if(GetCartName() == "DEZAEMON") {
+	
+	if(_sufamiTurbo) {
+		_sufamiTurbo->InitializeMappings(mm, _prgRomHandlers, _saveRamHandlers);
+		return true;
+	} else if(GetCartName() == "DEZAEMON") {
 		//LOROM with mirrored SRAM?
 		mm.RegisterHandler(0x00, 0x7D, 0x8000, 0xFFFF, _prgRomHandlers);
 		mm.RegisterHandler(0x80, 0xFF, 0x8000, 0xFFFF, _prgRomHandlers);
@@ -638,6 +657,30 @@ void BaseCartridge::LoadSpc()
 {
 	_spcData.reset(new SpcFileData(_prgRom, _prgRomSize));
 	SetupCpuHalt();
+}
+
+bool BaseCartridge::LoadSufamiTurbo(VirtualFile& romFile)
+{
+	_sufamiTurbo.reset(SufamiTurbo::Init(_emu, romFile));
+	if(!_sufamiTurbo) {
+		return false;
+	}
+
+	vector<uint8_t> romData;
+	romFile.ReadFile(romData);
+
+	_prgRomSize = (uint32_t)romData.size();
+	_prgRom = new uint8_t[_prgRomSize];
+	memcpy(_prgRom, romData.data(), romData.size());
+	BaseCartridge::EnsureValidPrgRomSize(_prgRomSize, _prgRom);
+	_emu->RegisterMemory(MemoryType::SnesPrgRom, _prgRom, _prgRomSize);
+
+	_saveRamSize = SufamiTurbo::GetSaveRamSize(romData);
+	_saveRam = new uint8_t[_saveRamSize];
+	_emu->RegisterMemory(MemoryType::SnesSaveRam, _saveRam, _saveRamSize);
+	_emu->GetSettings()->InitializeRam(GetRamPowerOnState(), _saveRam, _saveRamSize);
+
+	return true;
 }
 
 bool BaseCartridge::LoadGameboy(VirtualFile& romFile)
@@ -848,6 +891,11 @@ Sa1* BaseCartridge::GetSa1()
 Cx4* BaseCartridge::GetCx4()
 {
 	return _cx4;
+}
+
+St018* BaseCartridge::GetSt018()
+{
+	return _st018;
 }
 
 SuperGameboy* BaseCartridge::GetSuperGameboy()

@@ -478,14 +478,12 @@ bool SnesPpu::ProcessEndOfScanline(uint16_t& hClock)
 			_emu->ProcessEvent(EventType::EndFrame);
 
 			_frameCount++;
-			_regs->SetNmiFlag(true);
 			SendFrame();
 
 			_console->ProcessEndOfFrame();
 		} else if(_scanline >= _vblankEndScanline + 1) {
 			//"Frames are 262 scanlines in non-interlace mode, while in interlace mode frames with $213f.7=0 are 263 scanlines"
 			_oddFrame ^= 1;
-			_regs->SetNmiFlag(false);
 			_scanline = 0;
 			_rangeOver = false;
 			_timeOver = false;
@@ -514,6 +512,11 @@ bool SnesPpu::ProcessEndOfScanline(uint16_t& hClock)
 	return false;
 }
 
+bool SnesPpu::IsInOverclockedScanline()
+{
+	return _inOverclockedScanline;
+}
+
 void SnesPpu::UpdateSpcState()
 {
 	//When using overclocking, turn off the SPC during the extra scanlines
@@ -521,13 +524,16 @@ void SnesPpu::UpdateSpcState()
 		if(_scanline > _adjustedVblankEndScanline) {
 			//Disable APU for extra lines after NMI
 			_spc->SetSpcState(false);
+			_inOverclockedScanline = true;
 		} else if(_scanline >= _vblankStartScanline && _scanline < _nmiScanline) {
 			//Disable APU for extra lines before NMI
 			_spc->SetSpcState(false);
+			_inOverclockedScanline = true;
 		} else {
 			_spc->SetSpcState(true);
 		}
 	}
+	_inOverclockedScanline = false;
 }
 
 void SnesPpu::UpdateNmiScanline()
@@ -919,10 +925,12 @@ void SnesPpu::RenderBgColor()
 	uint8_t pixelFlags = (_state.ColorMathEnabled & 0x20) ? PixelFlags::AllowColorMath : 0;
 	for(int x = _drawStartX; x <= _drawEndX; x++) {
 		if((_mainScreenFlags[x] & 0x0F) == 0) {
+			_state.InternalCgramAddress = 0;
 			_mainScreenBuffer[x] = _cgram[0];
 			_mainScreenFlags[x] = pixelFlags;
 		}
 		if(_subScreenPriority[x] == 0) {
+			_state.InternalCgramAddress = 0;
 			_subScreenBuffer[x] = _cgram[0];
 		}
 	}
@@ -1069,9 +1077,11 @@ uint16_t SnesPpu::GetRgbColor(uint8_t paletteIndex, uint8_t colorIndex)
 		);
 	} else if constexpr(bpp == 8) {
 		//Ignore palette bits for 256-color layers
-		return _cgram[basePaletteOffset + colorIndex];
+		_state.InternalCgramAddress = basePaletteOffset + colorIndex;
+		return _cgram[_state.InternalCgramAddress];
 	} else {
-		return _cgram[basePaletteOffset + paletteIndex * (1 << bpp) + colorIndex];
+		_state.InternalCgramAddress = basePaletteOffset + paletteIndex * (1 << bpp) + colorIndex;
+		return _cgram[_state.InternalCgramAddress];
 	}
 }
 
@@ -1612,6 +1622,16 @@ bool SnesPpu::IsDoubleWidth()
 	return _state.HiResMode || _state.BgMode == 5 || _state.BgMode == 6;
 }
 
+bool SnesPpu::CanAccessCgram()
+{
+	return _scanline >= _nmiScanline || _scanline == 0 || _state.ForcedBlank || _memoryManager->GetHClock() < 88 || _memoryManager->GetHClock() >= 1096;
+}
+
+bool SnesPpu::CanAccessVram()
+{
+	return _scanline >= _nmiScanline || _state.ForcedBlank;
+}
+
 void SnesPpu::SetLocationLatchRequest(uint16_t x, uint16_t y)
 {
 	//Used by super scope
@@ -1662,8 +1682,9 @@ uint16_t SnesPpu::GetOamAddress()
 
 void SnesPpu::UpdateVramReadBuffer()
 {
-	uint16_t addr = GetVramAddress();
-	_state.VramReadBuffer = _vram[addr];
+	//During rendering, this can't read the correct VRAM address
+	//Unknown: does it read from the address the ppu is currently reading from (like oam/cgram)?
+	_state.VramReadBuffer = CanAccessVram() ? _vram[GetVramAddress()] : 0;
 }
 
 uint16_t SnesPpu::GetVramAddress()
@@ -1751,14 +1772,17 @@ uint8_t SnesPpu::Read(uint16_t addr)
 		case 0x213B: {
 			//CGDATAREAD - CGRAM Data read
 			uint8_t value;
+			
+			//During rendering, reads to CGRAM end up returning the value a the address the PPU is currently reading
+			uint16_t cgAddr = CanAccessCgram() ? _state.CgramAddress : _state.InternalCgramAddress;
+
 			if(_state.CgramAddressLatch){
-				value = ((_cgram[_state.CgramAddress] >> 8) & 0x7F) | (_state.Ppu2OpenBus & 0x80);
+				value = ((_cgram[cgAddr] >> 8) & 0x7F) | (_state.Ppu2OpenBus & 0x80);
+				_emu->ProcessPpuRead<CpuType::Snes>((cgAddr << 1) + 1, value, MemoryType::SnesCgRam);
 				_state.CgramAddress++;
-				
-				_emu->ProcessPpuRead<CpuType::Snes>((_state.CgramAddress >> 1) + 1, value, MemoryType::SnesCgRam);
 			} else {
-				value = (uint8_t)_cgram[_state.CgramAddress];
-				_emu->ProcessPpuRead<CpuType::Snes>(_state.CgramAddress >> 1, value, MemoryType::SnesCgRam);
+				value = (uint8_t)_cgram[cgAddr];
+				_emu->ProcessPpuRead<CpuType::Snes>(cgAddr << 1, value, MemoryType::SnesCgRam);
 			}
 			_state.CgramAddressLatch = !_state.CgramAddressLatch;
 			
@@ -1916,9 +1940,6 @@ void SnesPpu::Write(uint32_t addr, uint8_t value)
 		}
 
 		case 0x2105:
-			if(_state.BgMode != (value & 0x07)) {
-				LogDebug("[Debug] Entering mode: " + std::to_string(value & 0x07) + " (SL: " + std::to_string(_scanline) + ")");
-			}
 			_state.BgMode = value & 0x07;
 			ConvertToHiRes();
 
@@ -2016,7 +2037,7 @@ void SnesPpu::Write(uint32_t addr, uint8_t value)
 
 		case 0x2118:
 			//VMDATAL - VRAM Data Write low byte
-			if(_scanline >= _nmiScanline || _state.ForcedBlank) {
+			if(CanAccessVram()) {
 				//Only write the value if in vblank or forced blank (writes to VRAM outside vblank/forced blank are not allowed)
 				_emu->ProcessPpuWrite<CpuType::Snes>(GetVramAddress() << 1, value, MemoryType::SnesVideoRam);
 				_vram[GetVramAddress()] = value | (_vram[GetVramAddress()] & 0xFF00);
@@ -2030,7 +2051,7 @@ void SnesPpu::Write(uint32_t addr, uint8_t value)
 
 		case 0x2119:
 			//VMDATAH - VRAM Data Write high byte
-			if(_scanline >= _nmiScanline || _state.ForcedBlank) {
+			if(CanAccessVram()) {
 				//Only write the value if in vblank or forced blank (writes to VRAM outside vblank/forced blank are not allowed)
 				_emu->ProcessPpuWrite<CpuType::Snes>((GetVramAddress() << 1) + 1, value, MemoryType::SnesVideoRam);
 				_vram[GetVramAddress()] = (value << 8) | (_vram[GetVramAddress()] & 0xFF); 
@@ -2079,10 +2100,14 @@ void SnesPpu::Write(uint32_t addr, uint8_t value)
 			if(_state.CgramAddressLatch) {
 				//MSB ignores the 7th bit (colors are 15-bit only)
 				value &= 0x7F;
-				_emu->ProcessPpuWrite<CpuType::Snes>(_state.CgramAddress << 1, _state.CgramWriteBuffer, MemoryType::SnesCgRam);
-				_emu->ProcessPpuWrite<CpuType::Snes>((_state.CgramAddress << 1) + 1, value, MemoryType::SnesCgRam);
 
-				_cgram[_state.CgramAddress] = _state.CgramWriteBuffer | (value << 8);
+				//During rendering, writes to CGRAM end up writing to the address the PPU is currently reading
+				uint16_t cgAddr = CanAccessCgram() ? _state.CgramAddress : _state.InternalCgramAddress;
+
+				_emu->ProcessPpuWrite<CpuType::Snes>(cgAddr << 1, _state.CgramWriteBuffer, MemoryType::SnesCgRam);
+				_emu->ProcessPpuWrite<CpuType::Snes>((cgAddr << 1) + 1, value, MemoryType::SnesCgRam);
+
+				_cgram[cgAddr] = _state.CgramWriteBuffer | (value << 8);
 				_state.CgramAddress++;
 			} else {
 				_state.CgramWriteBuffer = value;
@@ -2234,6 +2259,7 @@ void SnesPpu::Serialize(Serializer &s)
 	SV(_state.Mode7.ValueLatch); SV(_state.Mode7.VerticalMirroring); SV(_state.Mode7.VScroll);
 	SV(_state.CgramAddressLatch); SV(_state.CgramWriteBuffer);
 	SV(_state.InternalOamAddress);
+	SV(_state.InternalCgramAddress);
 
 	for(int i = 0; i < 4; i++) {
 		SVI(_state.Layers[i].ChrAddress); SVI(_state.Layers[i].DoubleHeight); SVI(_state.Layers[i].DoubleWidth); SVI(_state.Layers[i].HScroll);

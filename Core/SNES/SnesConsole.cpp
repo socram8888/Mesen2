@@ -23,6 +23,7 @@
 #include "SNES/Coprocessors/SA1/Sa1.h"
 #include "SNES/Coprocessors/GSU/Gsu.h"
 #include "SNES/Coprocessors/CX4/Cx4.h"
+#include "SNES/Coprocessors/ST018/St018.h"
 #include "Shared/Emulator.h"
 #include "Shared/TimingInfo.h"
 #include "Shared/EmuSettings.h"
@@ -74,6 +75,11 @@ void SnesConsole::ProcessEndOfFrame()
 	if(_cart->GetCoprocessor()) {
 		_cart->GetCoprocessor()->ProcessEndOfFrame();
 	}
+	
+	//Run the SPC at least once per frame to prevent issues (buffer overflow)
+	//when a very long DMA transfer is running across multiple frames.
+	//(RunFrame above can run more than one frame in this scenario, which could cause crashes)
+	_spc->ProcessEndFrame();
 
 	_emu->ProcessEndOfFrame();
 
@@ -247,6 +253,8 @@ vector<CpuType> SnesConsole::GetCpuTypes()
 		cpuTypes.push_back(CpuType::Gameboy);
 	} else if(_cart->GetSa1()) {
 		cpuTypes.push_back(CpuType::Sa1);
+	} else if(_cart->GetSt018()) {
+		cpuTypes.push_back(CpuType::St018);
 	}
 	return cpuTypes;
 }
@@ -436,6 +444,7 @@ AddressInfo SnesConsole::GetAbsoluteAddress(AddressInfo& relAddress)
 		case MemoryType::Sa1Memory: return _cart->GetSa1() ? _cart->GetSa1()->GetMemoryMappings()->GetAbsoluteAddress(relAddress.Address) : unmapped;
 		case MemoryType::GsuMemory: return _cart->GetGsu() ? _cart->GetGsu()->GetMemoryMappings()->GetAbsoluteAddress(relAddress.Address) : unmapped;
 		case MemoryType::Cx4Memory: return _cart->GetCx4() ? _cart->GetCx4()->GetMemoryMappings()->GetAbsoluteAddress(relAddress.Address) : unmapped;
+		case MemoryType::St018Memory: return _cart->GetSt018() ? _cart->GetSt018()->GetArmAbsoluteAddress(relAddress.Address) : unmapped;
 		case MemoryType::NecDspMemory: return { relAddress.Address, MemoryType::DspProgramRom };
 		case MemoryType::GameboyMemory: return _cart->GetGameboy() ? _cart->GetGameboy()->GetAbsoluteAddress(relAddress.Address) : unmapped;
 		default: return unmapped;
@@ -454,6 +463,7 @@ AddressInfo SnesConsole::GetRelativeAddress(AddressInfo& absAddress, CpuType cpu
 		case CpuType::Sa1: mappings = _cart->GetSa1() ? _cart->GetSa1()->GetMemoryMappings() : nullptr; break;
 		case CpuType::Gsu: mappings = _cart->GetGsu() ? _cart->GetGsu()->GetMemoryMappings() : nullptr; break;
 		case CpuType::Cx4: mappings = _cart->GetCx4() ? _cart->GetCx4()->GetMemoryMappings() : nullptr; break;
+		case CpuType::St018: break;
 		case CpuType::Gameboy: break;
 		default: return unmapped;
 	}
@@ -462,6 +472,7 @@ AddressInfo SnesConsole::GetRelativeAddress(AddressInfo& absAddress, CpuType cpu
 		case MemoryType::SnesPrgRom:
 		case MemoryType::SnesWorkRam:
 		case MemoryType::SnesSaveRam:
+		case MemoryType::SufamiTurboFirmware:
 		{
 			if(!mappings) {
 				return unmapped;
@@ -494,6 +505,11 @@ AddressInfo SnesConsole::GetRelativeAddress(AddressInfo& absAddress, CpuType cpu
 		case MemoryType::GbHighRam:
 		case MemoryType::GbBootRom:
 			return _cart->GetGameboy() ? AddressInfo { _cart->GetGameboy()->GetRelativeAddress(absAddress), MemoryType::GameboyMemory } : unmapped;
+
+		case MemoryType::St018PrgRom:
+		case MemoryType::St018DataRom:
+		case MemoryType::St018WorkRam:
+			return _cart->GetSt018() ? AddressInfo { _cart->GetSt018()->GetArmRelativeAddress(absAddress), MemoryType::St018Memory } : unmapped;
 
 		case MemoryType::DspProgramRom:
 			return { absAddress.Address, MemoryType::NecDspMemory };
@@ -536,6 +552,9 @@ void SnesConsole::GetConsoleState(BaseState& baseState, ConsoleType consoleType)
 	}
 	if(_cart->GetCx4()) {
 		state.Cx4 = _cart->GetCx4()->GetState();
+	}
+	if(_cart->GetSt018()) {
+		state.St018 = _cart->GetSt018()->GetState();
 	}
 }
 

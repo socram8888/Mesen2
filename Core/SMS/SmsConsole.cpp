@@ -26,6 +26,10 @@ SmsConsole::SmsConsole(Emulator* emu)
 	_emu = emu;
 }
 
+SmsConsole::~SmsConsole()
+{
+}
+
 LoadRomResult SmsConsole::LoadRom(VirtualFile& romFile)
 {
 	vector<uint8_t> romData;
@@ -36,6 +40,8 @@ LoadRomResult SmsConsole::LoadRom(VirtualFile& romFile)
 			//ROM has 512-byte copier header, ignore it
 			romData.erase(romData.begin(), romData.begin() + 0x200);
 		}
+
+		_filename = romFile.GetFileName();
 
 		string ext = romFile.GetFileExtension();
 		bool isGameGear = ext == ".gg";
@@ -52,7 +58,7 @@ LoadRomResult SmsConsole::LoadRom(VirtualFile& romFile)
 			_romFormat = RomFormat::Sms;
 			_model = SmsModel::Sms;
 		}
-
+		
 		_vdp.reset(new SmsVdp());
 		_memoryManager.reset(new SmsMemoryManager());
 		_cpu.reset(new SmsCpu());
@@ -72,7 +78,7 @@ LoadRomResult SmsConsole::LoadRom(VirtualFile& romFile)
 		_memoryManager->Init(_emu, this, romData, biosRom, _vdp.get(), _controlManager.get(), _cart.get(), _psg.get(), _fmAudio.get());
 		_vdp->Init(_emu, this, _cpu.get(), _controlManager.get(), _memoryManager.get());
 		_cpu->Init(_emu, this, _memoryManager.get());
-		
+
 		UpdateRegion(true);
 
 		return LoadRomResult::Success;
@@ -169,7 +175,7 @@ void SmsConsole::UpdateRegion(bool forceUpdate)
 	}
 
 	if(region == ConsoleRegion::Auto) {
-		string filename = StringUtilities::ToLower(_emu->GetRomInfo().RomFile.GetFileName());
+		string filename = StringUtilities::ToLower(_filename);
 		if(filename.find("(europe)") != string::npos || filename.find("(e)") != string::npos) {
 			region = ConsoleRegion::Pal;
 		} else {
@@ -184,6 +190,7 @@ void SmsConsole::UpdateRegion(bool forceUpdate)
 	if(_region != region || forceUpdate) {
 		_region = region;
 		_vdp->SetRegion(_model == SmsModel::GameGear ? ConsoleRegion::Ntsc : _region);
+		_psg->SetRegion(_model == SmsModel::GameGear ? ConsoleRegion::Ntsc : _region);
 	}
 }
 

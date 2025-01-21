@@ -48,6 +48,7 @@
 			<Control ID="grpControllers">Controllers</Control>
 			<Control ID="grpGeneral">General</Control>
 			<Control ID="chkAutoConfigureInput">Automatically configure controllers when loading a game</Control>
+			<Control ID="chkAllowInvalidInput">Allow invalid input (e.g Down + Up or Left + Right at the same time)</Control>
 			<Control ID="lblLightDetectionRadius">Light detection radius for light guns:</Control>
 			<Control ID="lblSmall">Small</Control>
 			<Control ID="lblLarge">Large</Control>
@@ -88,6 +89,10 @@
 			<Control ID="lblMultitap2D">Port 4:</Control>
 			<Control ID="grpMultitap">Multitap Configuration</Control>
 			<Control ID="lblKeyBinding">Warning: Your current configuration contains conflicting key bindings - some physical buttons on your keyboard or gamepad are mapped to multiple buttons on the NES controller. If this is not intentional, please review and correct your key bindings.</Control>
+
+			<Control ID="grpControllers">Controllers</Control>
+			<Control ID="grpGeneral">General</Control>
+			<Control ID="chkAllowInvalidInput">Allow invalid input (e.g Down + Up or Left + Right at the same time)</Control>
 		</Form>
 		<Form ID="InputConfigView">
 			<Control ID="tpgGeneral">General</Control>
@@ -200,7 +205,18 @@
 			<Control ID="lblRunAhead">Run Ahead:</Control>
 			<Control ID="lblRunAheadFrames">frames (reduces input lag, increases CPU usage)</Control>
 
-			<Control ID="lblRegion">Region:</Control>
+			<Control ID="tpgFirmwares">Firmwares</Control>
+			<Control ID="lblNes">NES</Control>
+			<Control ID="lblSnes">SNES</Control>
+			<Control ID="lblGameboy">Game Boy</Control>
+			<Control ID="lblGba">Game Boy Advance</Control>
+			<Control ID="lblPce">PC Engine</Control>
+			<Control ID="lblSms">SMS / Game Gear</Control>
+			<Control ID="lblColecoVision">ColecoVision</Control>
+			<Control ID="lblWonderSwan">WonderSwan</Control>
+			<Control ID="lblOtherConsoles">Other systems</Control>
+			
+			<Control ID="lblWrongHash">File does not contain the expected data, and may not work correctly.</Control>
 		</Form>
 
 		<Form ID="VideoConfigOverrideView">
@@ -342,7 +358,6 @@
 			<Control ID="chkEnableDmcSampleDuplicationGlitch">Enable DMC sample duplication glitch (late-G &amp; H CPU behavior)</Control>
 			<Control ID="chkEnableCpuTestMode">Enable CPU test mode registers</Control>
 			<Control ID="lblConsoleType">Console model:</Control>
-			<Control ID="chkAllowInvalidInput">Allow invalid input (e.g Down + Up or Left + Right at the same time)</Control>
 		</Form>
 
 		<Form ID="GameboyConfigView">
@@ -352,6 +367,7 @@
 			
 			<Control ID="tpgEmulation">Emulation</Control>
 			<Control ID="lblRamPowerOnState">Default power on state for RAM: </Control>
+			<Control ID="grpGeneral">General</Control>
 			<Control ID="chkAllowInvalidInput">Allow invalid input (e.g Down + Up or Left + Right at the same time)</Control>
 			
 			<Control ID="tpgVideo">Video</Control>
@@ -396,6 +412,7 @@
 			<Control ID="lblSaveType">Save Type:</Control>
 			<Control ID="lblRtcType">Real-Time Clock:</Control>
 			<Control ID="lblRamPowerOnState">Default power on state for RAM: </Control>
+			<Control ID="grpGeneral">General</Control>
 			<Control ID="chkAllowInvalidInput">Allow invalid input (e.g Down + Up or Left + Right at the same time)</Control>
 			<Control ID="chkEnableMgbaLogApi">Enable mGBA log API</Control>
 
@@ -492,7 +509,8 @@
 			<Control ID="lblPort1D">Port 4:</Control>
 			<Control ID="lblPort1E">Port 5:</Control>
 
-			<Control ID="grpInputSettings">Input settings</Control>
+			<Control ID="grpGeneral">General</Control>
+			<Control ID="chkAllowInvalidInput">Allow invalid input (e.g Down + Up or Left + Right at the same time)</Control>
 			<Control ID="chkPreventSelectRunReset">Disable Run+Select combination (to avoid resets in games)</Control>
 		</Form>
 
@@ -549,6 +567,9 @@
 			<Control ID="lblController2">Port 2:</Control>
 
 			<Control ID="grpGeneral">General</Control>
+
+			<Control ID="grpGeneral">General</Control>
+			<Control ID="chkAllowInvalidInput">Allow invalid input (e.g Down + Up or Left + Right at the same time)</Control>
 		</Form>
 
 		<Form ID="OtherConsolesConfigView">
@@ -1512,7 +1533,8 @@
 			<Control ID="lblAutoLoadSettings">Auto-load settings</Control>
 			<Control ID="lblAutoLoadHint">Automatically load the following file types when a matching file is found in the ROM's folder:</Control>
 			<Control ID="chkAutoLoadDbgFiles">.DBG files (CA65 debug symbols)</Control>
-			<Control ID="chkAutoLoadSymFiles">.SYM files (bass, RGBDS, WLA DX)</Control>
+			<Control ID="chkAutoLoadSymFiles">.SYM files (PCEAS, RGBDS, WLA DX, bass)</Control>
+			<Control ID="chkAutoLoadCdbFiles">.CDB files (SDCC)</Control>
 			<Control ID="chkAutoLoadElfFiles">.ELF files (devkitARM - GBA)</Control>
 			<Control ID="chkAutoLoadMlbFiles">.MLB files (Mesen label file)</Control>
 			<Control ID="chkAutoLoadFnsFiles">.FNS files (NESASM)</Control>
@@ -1525,7 +1547,10 @@
 			<Control ID="chkImportWorkRamLabels">Work RAM labels</Control>
 			<Control ID="chkImportOtherLabels">Other labels</Control>
 			<Control ID="chkImportComments">Import comments (restricted to the label types selected above)</Control>
-			
+
+			<Control ID="lblSourceView">Source view</Control>
+			<Control ID="lblTabSize">Tab size: </Control>
+
 			<Control ID="tabShortcuts">Shortcuts</Control>
 			<Control ID="tabShared">Shared</Control>
 			<Control ID="tabMemoryTools">Memory Viewer</Control>
@@ -1678,6 +1703,11 @@
 			<Control ID="btnOK">OK</Control>
 			<Control ID="btnCancel">Cancel</Control>
 		</Form>
+
+		<Form ID="FirmwareSelect">
+			<Control ID="btnSelect">Select...</Control>
+			<Control ID="btnDelete">Delete file</Control>
+		</Form>
 	</Forms>
 	<Messages>
 		<Message ID="LastSession">Last Session</Message>
@@ -1695,6 +1725,13 @@
 
 		<Message ID="PromptSaveChanges">Save changes?</Message>
 		<Message ID="PromptKeepChanges">Keep changes?</Message>
+
+		<Message ID="PromptLoadSufamiTurbo">Do you want to load a second Sufami Turbo ROM to insert into slot B?</Message>
+
+		<Message ID="UnknownFirmwareHash">This file does not match any of the known firmwares and may not work properly.&#xA;&#xA;Expected (SHA256): {0}&#xA;Current (SHA256): {1}</Message>
+		<Message ID="InvalidFirmwareSize">This file does not have the required size.&#xA;&#xA;Expected: {0} bytes&#xA;Current: {1} bytes</Message>
+		<Message ID="PromptDeleteFirmware">The following file will be deleted permanently. Are you sure?&#xA;&#xA;{0}</Message>
+		<Message ID="OverwriteFirmware">The following file already exists and will be overwritten. This cannot be undone. Are you sure?&#xA;&#xA;{0}</Message>
 
 		<Message ID="MovieSegment">Segment #{0}</Message>
 		<Message ID="MovieExportEntireSegment">Export entire segment</Message>
@@ -2044,6 +2081,7 @@ E
 		<Enum ID="DspInterpolationType">
 			<Value ID="Gauss">Gauss (default, accurate)</Value>
 			<Value ID="Cubic">Cubic</Value>
+			<Value ID="Sinc">Sinc</Value>
 			<Value ID="None">None</Value>
 		</Enum>
 		<Enum ID="SnesSuperScopeButtons">
@@ -2648,6 +2686,7 @@ E
 			<Value ID="ST010">ST010</Value>
 			<Value ID="ST011">ST011</Value>
 			<Value ID="ST018">ST018</Value>
+			<Value ID="SufamiTurbo">Sufami Turbo</Value>
 			<Value ID="Satellaview">Satellaview (BS-X)</Value>
 			<Value ID="Gameboy">Game Boy CPU</Value>
 			<Value ID="GameboyColor">Game Boy Color CPU</Value>
@@ -2665,6 +2704,8 @@ E
 			<Value ID="WonderSwanColor">WonderSwan Color</Value>
 			<Value ID="SwanCrystal">SwanCrystal</Value>
 			<Value ID="Ymf288AdpcmRom">YFM288 ADPCM ROM (EPSM)</Value>
+			<Value ID="SmsBootRom">Master System - Boot ROM</Value>
+			<Value ID="GgBootRom">Game Gear - Boot ROM</Value>
 		</Enum>
 
 		<Enum ID="CpuType">
@@ -2674,6 +2715,7 @@ E
 			<Value ID="Sa1">SA-1</Value>
 			<Value ID="Gsu">GSU</Value>
 			<Value ID="Cx4">CX4</Value>
+			<Value ID="St018">ST018</Value>
 			<Value ID="Gameboy">Game Boy</Value>
 			<Value ID="Nes">NES</Value>
 			<Value ID="Pce">PC Engine</Value>
@@ -2689,6 +2731,7 @@ E
 			<Value ID="GsuMemory">GSU Memory</Value>
 			<Value ID="NecDspMemory">DSP-n Memory</Value>
 			<Value ID="Cx4Memory">CX4 Memory</Value>
+			<Value ID="St018Memory">ST018 Memory</Value>
 			<Value ID="SnesPrgRom">PRG ROM</Value>
 			<Value ID="SnesWorkRam">Work RAM</Value>
 			<Value ID="SnesSaveRam">Save RAM</Value>
@@ -2705,8 +2748,14 @@ E
 			<Value ID="Sa1InternalRam">SA-1 IRAM</Value>
 			<Value ID="GsuWorkRam">GSU Work RAM</Value>
 			<Value ID="Cx4DataRam">CX4 Data RAM</Value>
-			<Value ID="BsxPsRam">BS-X - PSRAM</Value>
-			<Value ID="BsxMemoryPack">BS-X - Memory Pack</Value>
+			<Value ID="BsxPsRam">BS-X PSRAM</Value>
+			<Value ID="BsxMemoryPack">BS-X Memory Pack</Value>
+			<Value ID="St018PrgRom">ST018 PRG ROM</Value>
+			<Value ID="St018DataRom">ST018 Data ROM</Value>
+			<Value ID="St018WorkRam">ST018 Work RAM</Value>
+			<Value ID="SufamiTurboFirmware">Sufami Turbo Firmware</Value>
+			<Value ID="SufamiTurboSecondCart">Sufami Slot B ROM</Value>
+			<Value ID="SufamiTurboSecondCartRam">Sufami Slot B RAM</Value>
 			
 			<Value ID="GameboyMemory">GB - CPU Memory</Value>
 			<Value ID="GbPrgRom">GB - PRG ROM</Value>
@@ -3020,6 +3069,7 @@ E
 		</Enum>
 		<Enum ID="DocEntrySubcategory">
 			<Value ID="AccessCounters">Access Counters</Value>
+			<Value ID="Cdl">Code/Data Log</Value>
 			<Value ID="Cheats">Cheats</Value>
 			<Value ID="SaveStates">Save States</Value>
 			<Value ID="Others">Others</Value>
@@ -3112,6 +3162,7 @@ E
 			<Value ID="OpenDebugger">Open Debugger</Value>
 			<Value ID="OpenSpcDebugger">Open SPC Debugger</Value>
 			<Value ID="OpenSa1Debugger">Open SA-1 Debugger</Value>
+			<Value ID="OpenSt018Debugger">Open ST018 Debugger</Value>
 			<Value ID="OpenGsuDebugger">Open GSU Debugger</Value>
 			<Value ID="OpenNecDspDebugger">Open DSP Debugger</Value>
 			<Value ID="OpenCx4Debugger">Open CX4 Debugger</Value>
@@ -3394,6 +3445,7 @@ E
 			<Value ID="OpenDebugger">Debugger</Value>
 			<Value ID="OpenSpcDebugger">SPC Debugger</Value>
 			<Value ID="OpenSa1Debugger">SA-1 Debugger</Value>
+			<Value ID="OpenSt018Debugger">ST018 Debugger</Value>
 			<Value ID="OpenGsuDebugger">GSU Debugger</Value>
 			<Value ID="OpenNecDspDebugger">DSP Debugger</Value>
 			<Value ID="OpenCx4Debugger">CX4 Debugger</Value>

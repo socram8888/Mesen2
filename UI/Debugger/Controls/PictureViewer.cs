@@ -207,6 +207,14 @@ namespace Mesen.Debugger.Controls
 			InvalidateVisual();
 		}
 
+		protected override void OnUnloaded(RoutedEventArgs e)
+		{
+			if(Source is IDynamicBitmap src) {
+				src.Invalidated -= OnSourceInvalidated;
+			}
+			base.OnUnloaded(e);
+		}
+
 		protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
 		{
 			base.OnAttachedToVisualTree(e);
@@ -278,8 +286,8 @@ namespace Mesen.Debugger.Controls
 				MinHeight = 0;
 			} else {
 				double dpiScale = LayoutHelper.GetLayoutScale(this);
-				MinWidth = (int)(Source.Size.Width - LeftClipSize - RightClipSize) * Zoom / dpiScale;
-				MinHeight = (int)(Source.Size.Height - TopClipSize - BottomClipSize) * Zoom / dpiScale;
+				MinWidth = Math.Max(0, (int)(Source.Size.Width - LeftClipSize - RightClipSize) * Zoom / dpiScale);
+				MinHeight = Math.Max(0, (int)(Source.Size.Height - TopClipSize - BottomClipSize) * Zoom / dpiScale);
 			}
 		}
 

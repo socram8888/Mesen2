@@ -77,6 +77,13 @@ namespace Mesen.Debugger.Utilities
 				}
 			}
 
+			if(SymbolProvider == null && ConfigManager.Config.Debug.Integration.AutoLoadCdbFiles) {
+				string? symPath = GetMatchingFile(FileDialogHelper.CdbFileExt);
+				if(symPath != null) {
+					LoadCdbFile(symPath, false);
+				}
+			}
+
 			if(SymbolProvider == null && ConfigManager.Config.Debug.Integration.AutoLoadElfFiles) {
 				string? symPath = GetMatchingFile(FileDialogHelper.ElfFileExt);
 				if(symPath != null) {
@@ -132,6 +139,14 @@ namespace Mesen.Debugger.Utilities
 			}
 		}
 
+		public static void LoadCdbFile(string path, bool showResult)
+		{
+			if(File.Exists(path) && Path.GetExtension(path).ToLower() == "." + FileDialogHelper.CdbFileExt) {
+				ResetLabels();
+				SymbolProvider = SdccSymbolImporter.Import(_romInfo.Format, path, showResult);
+			}
+		}
+
 		public static void LoadSymFile(string path, bool showResult)
 		{
 			if(File.Exists(path) && Path.GetExtension(path).ToLower() == "." + FileDialogHelper.SymFileExt) {
@@ -166,8 +181,12 @@ namespace Mesen.Debugger.Utilities
 							BassLabelFile.Import(path, showResult, CpuType.Gameboy);
 						}
 					} else {
-						if(_romInfo.ConsoleType == ConsoleType.PcEngine && PceasSymbolFile.IsValidFile(symContent)) {
-							PceasSymbolFile.Import(path, showResult);
+						if(_romInfo.ConsoleType == ConsoleType.PcEngine && PceasSymbolImporter.IsValidFile(symContent)) {
+							PceasSymbolImporter importer = new PceasSymbolImporter();
+							importer.Import(path, showResult);
+							SymbolProvider = importer;
+						} else if(_romInfo.ConsoleType == ConsoleType.PcEngine && LegacyPceasSymbolFile.IsValidFile(symContent)) {
+							LegacyPceasSymbolFile.Import(path, showResult);
 						} else {
 							BassLabelFile.Import(path, showResult, _romInfo.ConsoleType.GetMainCpuType());
 						}
@@ -201,13 +220,21 @@ namespace Mesen.Debugger.Utilities
 
 		public static void LoadSupportedFile(string filename, bool showResult)
 		{
+			ISymbolProvider? symbolProvider = SymbolProvider;
+			SymbolProvider = null;
+
 			switch(Path.GetExtension(filename).ToLower().Substring(1)) {
 				case FileDialogHelper.DbgFileExt: LoadDbgSymbolFile(filename, showResult); break;
 				case FileDialogHelper.SymFileExt: LoadSymFile(filename, showResult); break;
+				case FileDialogHelper.CdbFileExt: LoadCdbFile(filename, showResult); break;
 				case FileDialogHelper.ElfFileExt: LoadElfFile(filename, showResult); break;
 				case FileDialogHelper.MesenLabelExt: LoadMesenLabelFile(filename, showResult); break;
 				case FileDialogHelper.NesAsmLabelExt: LoadNesAsmLabelFile(filename, showResult); break;
-				case FileDialogHelper.CdlExt: LoadCdlFile(filename); break;
+				case FileDialogHelper.CdlExt: LoadCdlFile(filename); SymbolProvider = symbolProvider; break;
+			}
+
+			if(SymbolProvider != symbolProvider) {
+				SymbolProviderChanged?.Invoke(null, EventArgs.Empty);
 			}
 		}
 

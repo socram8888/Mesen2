@@ -53,6 +53,7 @@ namespace Mesen.Debugger.ViewModels
 		[Reactive] public List<ContextMenuAction> ToolbarItems { get; private set; } = new();
 
 		private PictureViewer _picViewer;
+		private bool _refreshPending;
 
 		[Obsolete("For designer only")]
 		public EventViewerViewModel() : this(CpuType.Nes, new PictureViewer(), null!, null) { }
@@ -129,8 +130,8 @@ namespace Mesen.Debugger.ViewModels
 				return;
 			}
 
-			DebugShortcutManager.CreateContextMenu(_picViewer, GetContextMenuActions());
-			DebugShortcutManager.CreateContextMenu(listView, GetContextMenuActions());
+			AddDisposables(DebugShortcutManager.CreateContextMenu(_picViewer, GetContextMenuActions()));
+			AddDisposables(DebugShortcutManager.CreateContextMenu(listView, GetContextMenuActions()));
 
 			UpdateConfig();
 			RefreshData();
@@ -189,7 +190,7 @@ namespace Mesen.Debugger.ViewModels
 					OnClick = () => {
 						if(SelectedEvent != null) {
 							int addr = (int)SelectedEvent.Value.ProgramCounter;
-							BreakpointManager.ToggleBreakpoint(new AddressInfo() { Address = addr, Type = CpuType.ToMemoryType() }, CpuType, true);
+							BreakpointManager.ToggleBreakpoint(new AddressInfo() { Address = addr, Type = CpuType.ToMemoryType() }, CpuType);
 						}
 					}
 				},
@@ -200,7 +201,7 @@ namespace Mesen.Debugger.ViewModels
 					OnClick = () => {
 						if(SelectedEvent?.Flags.HasFlag(EventFlags.ReadWriteOp) == true) {
 							int addr = (int)SelectedEvent.Value.Operation.Address;
-							BreakpointManager.ToggleBreakpoint(new AddressInfo() { Address = addr, Type = CpuType.ToMemoryType() }, CpuType, false);
+							BreakpointManager.ToggleBreakpoint(new AddressInfo() { Address = addr, Type = CpuType.ToMemoryType() }, CpuType);
 						}
 					}
 				},
@@ -269,20 +270,35 @@ namespace Mesen.Debugger.ViewModels
 
 		public void RefreshUi(bool forAutoRefresh)
 		{
-			Dispatcher.UIThread.Post(() => {
-				InitBitmap();
-				using(var bitmapLock = ViewerBitmap.Lock()) {
-					DebugApi.GetEventViewerOutput(CpuType, bitmapLock.FrameBuffer.Address, (uint)(ViewerBitmap.Size.Width * ViewerBitmap.Size.Height * sizeof(UInt32)));
-				}
+			if(_refreshPending) {
+				return;
+			}
 
-				if(ShowListView) {
-					DateTime now = DateTime.Now;
-					if(!forAutoRefresh || (now - _lastListRefresh).TotalMilliseconds >= 66) {
-						_lastListRefresh = now;
-						ListView.RefreshList();
-					}
-				}
+			_refreshPending = true;
+			Dispatcher.UIThread.Post(() => {
+				InternalRefreshUi(forAutoRefresh);
+				_refreshPending = false;
 			});
+		}
+
+		private void InternalRefreshUi(bool forAutoRefresh)
+		{
+			if(Disposed) {
+				return;
+			}
+
+			InitBitmap();
+			using(var bitmapLock = ViewerBitmap.Lock()) {
+				DebugApi.GetEventViewerOutput(CpuType, bitmapLock.FrameBuffer.Address, (uint)(ViewerBitmap.Size.Width * ViewerBitmap.Size.Height * sizeof(UInt32)));
+			}
+
+			if(ShowListView) {
+				DateTime now = DateTime.Now;
+				if(!forAutoRefresh || (now - _lastListRefresh).TotalMilliseconds >= 66) {
+					_lastListRefresh = now;
+					ListView.RefreshList();
+				}
+			}
 		}
 
 		private PixelPoint GetEventLocation(DebugEventInfo evt)
@@ -427,9 +443,8 @@ namespace Mesen.Debugger.ViewModels
 			}
 
 			if(evt.Type == DebugEventType.Breakpoint && evt.BreakpointId >= 0) {
-				var breakpoints = BreakpointManager.Breakpoints;
-				if(evt.BreakpointId < breakpoints.Count) {
-					Breakpoint bp = breakpoints[evt.BreakpointId];
+				Breakpoint? bp = BreakpointManager.GetBreakpointById(evt.BreakpointId);
+				if(bp != null) {
 					string bpInfo = "Breakpoint - ";
 					bpInfo += "CPU: " + ResourceHelper.GetEnumText(bp.CpuType);
 					bpInfo += singleLine ? " - " : Environment.NewLine;

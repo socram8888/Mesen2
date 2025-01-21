@@ -41,11 +41,11 @@ namespace Mesen.Debugger.ViewModels
 
 			UpdateAvailableTabs();
 
-			this.WhenAnyValue(x => x.SelectedTab).Subscribe(x => {
+			AddDisposable(this.WhenAnyValue(x => x.SelectedTab).Subscribe(x => {
 				if(SelectedTab != null && EmuApi.IsPaused()) {
 					RefreshData();
 				}
-			});
+			}));
 
 			FileMenuActions = AddDisposables(new List<object>() {
 				new ContextMenuAction() {
@@ -244,6 +244,12 @@ namespace Mesen.Debugger.ViewModels
 				if(label != null) {
 					functionName = label.Label + " (" + functionName + ")";
 				}
+			}
+
+			if(func.Flags.HasFlag(StackFrameFlags.Irq)) {
+				functionName = "[irq] " + functionName;
+			} else if(func.Flags.HasFlag(StackFrameFlags.Nmi)) {
+				functionName = "[nmi] " + functionName;
 			}
 
 			return functionName;

@@ -69,6 +69,8 @@ namespace Mesen.Debugger.ViewModels
 		public CpuType CpuType { get; private set; }
 		private UInt64 _masterClock = 0;
 
+		private bool _autoSwitchToSourceView = false;
+
 		private List<object> _gotoSubActions = new();
 
 		[Obsolete("For designer only")]
@@ -105,15 +107,15 @@ namespace Mesen.Debugger.ViewModels
 			Config = ConfigManager.Config.Debug.Debugger;
 
 			Options = new DebuggerOptionsViewModel(Config, CpuType);
-			Disassembly = new DisassemblyViewModel(this, ConfigManager.Config.Debug, CpuType);
-			BreakpointList = new BreakpointListViewModel(CpuType, this);
-			LabelList = new LabelListViewModel(CpuType, this);
-			FindResultList = new FindResultListViewModel(this);
+			Disassembly = AddDisposable(new DisassemblyViewModel(this, ConfigManager.Config.Debug, CpuType));
+			BreakpointList = AddDisposable(new BreakpointListViewModel(CpuType, this));
+			LabelList = AddDisposable(new LabelListViewModel(CpuType, this));
+			FindResultList = AddDisposable(new FindResultListViewModel(this));
 			ControllerList = new ControllerListViewModel(consoleType);
 			if(CpuType.SupportsFunctionList()) {
-				FunctionList = new FunctionListViewModel(CpuType, this);
+				FunctionList = AddDisposable(new FunctionListViewModel(CpuType, this));
 			}
-			CallStack = new CallStackViewModel(CpuType, this);
+			CallStack = AddDisposable(new CallStackViewModel(CpuType, this));
 			WatchList = AddDisposable(new WatchListViewModel(CpuType));
 			ConsoleStatus = CpuType switch {
 				CpuType.Snes => new SnesStatusViewModel(CpuType.Snes),
@@ -122,6 +124,7 @@ namespace Mesen.Debugger.ViewModels
 				CpuType.Sa1 => new SnesStatusViewModel(CpuType.Sa1),
 				CpuType.Gsu => new GsuStatusViewModel(),
 				CpuType.Cx4 => new Cx4StatusViewModel(),
+				CpuType.St018 => new St018StatusViewModel(),
 				CpuType.Gameboy => new GbStatusViewModel(),
 				CpuType.Nes => new NesStatusViewModel(),
 				CpuType.Pce => new PceStatusViewModel(),
@@ -225,6 +228,7 @@ namespace Mesen.Debugger.ViewModels
 			if(provider != null) {
 				SourceView = new SourceViewViewModel(this, provider, CpuType);
 				DockFactory.SourceViewTool.Model = SourceView;
+				SourceView.SetActiveAddress(Disassembly.ActiveAddress);
 				if(!IsToolVisible(DockFactory.SourceViewTool)) {
 					if(DockFactory.SourceViewTool.Owner is IDock dock && IsDockVisible(dock)) {
 						DockFactory.AddDockable(dock, DockFactory.SourceViewTool);
@@ -293,6 +297,7 @@ namespace Mesen.Debugger.ViewModels
 		{
 			ConsoleStatus?.UpdateUiState(true);
 			MemoryMappings?.Refresh();
+			UpdateCdlStats();
 			if(refreshWatch) {
 				WatchList.UpdateWatch();
 			}
@@ -368,7 +373,23 @@ namespace Mesen.Debugger.ViewModels
 				//Scroll to the active address and highlight it
 				int activeAddress = (int)DebugApi.GetProgramCounter(CpuType, true);
 				Disassembly.SetActiveAddress(activeAddress);
-				SourceView?.SetActiveAddress(activeAddress);
+
+				if(SourceView != null) {
+					bool sourceMappingFound = SourceView.SetActiveAddress(activeAddress);
+					if(!sourceMappingFound) {
+						//If location is not found in source mappings, swap to disassembly view
+						if(IsToolVisible(DockFactory.SourceViewTool) && IsToolActive(DockFactory.SourceViewTool)) {
+							_autoSwitchToSourceView = true;
+							OpenTool(DockFactory.DisassemblyTool);
+						}
+					} else if(_autoSwitchToSourceView) {
+						//If we previously auto-switched to disassembly view, go back to the
+						//source view automatically if the current address is mapped to a source file
+						OpenTool(DockFactory.SourceViewTool);
+						_autoSwitchToSourceView = false;
+					}
+				}
+
 				if(!EmuApi.IsPaused()) {
 					//Clear the highlight if the emulation is still running
 					Disassembly.SetActiveAddress(null);
@@ -381,7 +402,7 @@ namespace Mesen.Debugger.ViewModels
 		{
 			UpdateActiveAddress(scrollToActiveAddress);
 			Disassembly.Refresh();
-			SourceView?.InvalidateVisual();
+			SourceView?.Refresh();
 		}
 
 		public void ProcessResumeEvent(Window wnd)

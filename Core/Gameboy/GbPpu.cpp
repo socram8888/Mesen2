@@ -46,6 +46,9 @@ void GbPpu::Init(Emulator* emu, Gameboy* gameboy, GbMemoryManager* memoryManager
 	_state.CgbEnabled = _gameboy->IsCgb();
 	_lastFrameTime = 0;
 
+	_gameboy->InitializeRam(_state.CgbBgPalettes, 4 * 8 * sizeof(uint16_t));
+	_gameboy->InitializeRam(_state.CgbObjPalettes, 4 * 8 * sizeof(uint16_t));
+
 	UpdatePalette();
 
 	Write(0xFF48, 0xFF);
@@ -287,7 +290,7 @@ void GbPpu::ProcessFirstScanlineAfterPowerOn()
 			ResetRenderer();
 			_rendererIdle = true;
 			break;
-
+		
 		case 92:
 			_rendererIdle = false;
 			break;
@@ -345,10 +348,10 @@ void GbPpu::ProcessVisibleScanline()
 			_oamWriteBlocked = true;
 			_vramWriteBlocked = true;
 			_rendererIdle = true;
-			ResetRenderer();
 			break;
 
 		case 89:
+			ResetRenderer();
 			_rendererIdle = false;
 			break;
 
@@ -540,7 +543,7 @@ void GbPpu::ResetRenderer()
 	_drawnPixels = -8 - (_state.ScrollX & 0x07);
 	_fetchSprite = -1;
 	_fetchWindow = false;
-	_fetchColumn = _state.ScrollX / 8;
+	_fetchColumn = 0;
 
 	_insertGlitchBgPixel = false;
 }
@@ -614,16 +617,19 @@ void GbPpu::ClockTileFetcher()
 			//Fetch tile index
 			uint16_t tilemapAddr;
 			uint8_t yOffset;
+			uint8_t scrollPos;
 			if(_fetchWindow) {
 				tilemapAddr = _state.WindowTilemapSelect ? 0x1C00 : 0x1800;
 				yOffset = (uint8_t)_windowCounter;
+				scrollPos = _fetchColumn;
 			} else {
 				tilemapAddr = _state.BgTilemapSelect ? 0x1C00 : 0x1800;
 				yOffset = _state.ScrollY + _state.Scanline;
+				scrollPos = (_fetchColumn + (_state.ScrollX / 8)) & 0x1F;
 			}
 
 			uint8_t row = yOffset >> 3;
-			uint16_t tileAddr = tilemapAddr + _fetchColumn + row * 32;
+			uint16_t tileAddr = tilemapAddr + scrollPos + row * 32;
 			_tileIndex = LcdReadVram(tileAddr);
 
 			uint8_t attributes = _state.CgbEnabled ? _vram[tileAddr | 0x2000] : 0;

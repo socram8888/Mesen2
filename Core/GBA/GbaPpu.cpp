@@ -75,6 +75,16 @@ void GbaPpu::ProcessHBlank()
 		_console->GetDmaController()->TriggerDma(GbaDmaTrigger::HBlank);
 	}
 
+	for(int i = 0; i < 4; i++) {
+		if(_state.BgLayers[i].EnableTimer && --_state.BgLayers[i].EnableTimer == 0) {
+			//Exact timing hasn't been verified
+			//The mGBA Suite test writes on H=1065 and expects the layer to be enabled 3 scanlines later (write on scanline 101, starts rendering on scanline 104, so just over 2 scanlines)
+			//Spyro - Season of Ice writes on H=30, and expects the layer to be enabled 2 scanlines later
+			//Doing this at the start of hblank allows both scenarios the work
+			_state.BgLayers[i].Enabled = true;
+		}
+	}
+
 	if(_state.HblankIrqEnabled) {
 		_console->GetMemoryManager()->SetDelayedIrqSource(GbaIrqSource::LcdHblank, 4);
 	}
@@ -115,10 +125,6 @@ void GbaPpu::ProcessEndOfScanline()
 	}
 
 	for(int i = 0; i < 4; i++) {
-		if(_state.BgLayers[i].EnableTimer && --_state.BgLayers[i].EnableTimer == 0) {
-			_state.BgLayers[i].Enabled = true;
-		}
-
 		//Unverified: Latch X scroll value at the start of each scanline
 		//This fixes display issues in the Fire Emblem Sacred Stones menu
 		_state.BgLayers[i].ScrollXLatch = _state.BgLayers[i].ScrollX;
@@ -133,6 +139,7 @@ void GbaPpu::ProcessEndOfScanline()
 
 	if(_state.Scanline == 160) {
 		_oamScanline = 0;
+		_state.ObjEnableTimer = 0;
 		SendFrame();
 		if(_state.VblankIrqEnabled) {
 			_console->GetMemoryManager()->SetIrqSource(GbaIrqSource::LcdVblank);
@@ -1174,7 +1181,7 @@ void GbaPpu::SetLayerEnabled(int layer, bool enabled)
 		_state.BgLayers[layer].Enabled = enabled;
 		_state.BgLayers[layer].EnableTimer = 0;
 	} else if(_state.BgLayers[layer].EnableTimer == 0) {
-		_state.BgLayers[layer].EnableTimer = 3;
+		_state.BgLayers[layer].EnableTimer = 2;
 	}
 }
 
@@ -1210,7 +1217,7 @@ void GbaPpu::WriteRegister(uint32_t addr, uint8_t value)
 				std::fill(_oamOutputBuffers[0], _oamOutputBuffers[0] + 240, GbaPixelData {});
 				std::fill(_oamOutputBuffers[1], _oamOutputBuffers[1] + 240, GbaPixelData {});
 			} else if(!_state.ObjLayerEnabled && objEnabled) {
-				_state.ObjEnableTimer = 3;
+				_state.ObjEnableTimer = _state.Scanline >= 160 ? 0 : 3;
 			}
 			_state.ObjLayerEnabled = objEnabled;
 			_state.Window0Enabled = value & 0x20;
@@ -1373,7 +1380,7 @@ uint8_t GbaPpu::ReadRegister(uint32_t addr)
 		case 0x04:
 			return (
 				(_state.Scanline >= 160 && _state.Scanline != 227 ? 0x01 : 0) |
-				(_state.Cycle > 1007 ? 0x02 : 0) |
+				((_state.Cycle > 1007 || _state.Cycle == 0) ? 0x02 : 0) |
 				(_state.Scanline == _state.Lyc ? 0x04 : 0) |
 				_state.DispStat
 			);

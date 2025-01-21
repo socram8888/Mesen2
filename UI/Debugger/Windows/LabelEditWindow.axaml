@@ -19,7 +19,6 @@
 	Icon="/Assets/EditLabel.png"
 	Width="350" Height="250"
 	MinWidth="350" MinHeight="250"
-	ShowInTaskbar="False"
 	Title="{l:Translate wndTitle}"
 >
 	<Design.DataContext>
@@ -57,7 +56,7 @@
 			<TextBox
 				Grid.Column="1" Grid.Row="2"
 				Name="txtLabel"
-				Text="{Binding Label.Label}"
+				Text="{Binding Label.Label, Converter={StaticResource NullTextConverter}}"
 			/>
 
 			<TextBlock Grid.Column="0" Grid.Row="3" Text="{l:Translate lblComment}" />
@@ -68,14 +67,14 @@
 				Height="NaN"
 				MinHeight="100"
 				VerticalContentAlignment="Top"
-				Text="{Binding Label.Comment}"
+				Text="{Binding Label.Comment, Converter={StaticResource NullTextConverter}}"
 				FontFamily="{DynamicResource MesenMonospaceFont}"
 				FontSize="{DynamicResource MesenMonospaceFontSize}"
 			/>
 
 			<TextBlock Grid.Column="0" Grid.Row="4" Text="{l:Translate lblLength}" />
 			<StackPanel Orientation="Horizontal" Grid.Column="1" Grid.Row="4">
-				<NumericUpDown
+				<c:MesenNumericUpDown
 					Value="{Binding Label.Length}"
 					Minimum="1"
 					Maximum="65536"

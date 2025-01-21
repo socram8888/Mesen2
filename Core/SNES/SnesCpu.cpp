@@ -47,7 +47,7 @@ void SnesCpu::CheckForInterrupts()
 {
 #ifndef DUMMYCPU
 	//Use the state of the IRQ/NMI flags on the previous cycle to determine if an IRQ is processed or not
-	if(_state.PrevNeedNmi) {
+	if(_state.NeedNmi) {
 		_state.NeedNmi = false;
 		uint32_t originalPc = GetProgramAddress(_state.PC);
 		_emu->GetCheatManager()->RefreshRamCheats(CpuType::Snes);
@@ -74,10 +74,9 @@ void SnesCpu::ProcessHaltedState()
 #endif
 	} else {
 		//WAI
+		bool over = _waiOver;
 		Idle();
-		if(_state.IrqSource || _state.NeedNmi) {
-			Idle();
-			Idle();
+		if(over) {
 			_state.StopState = SnesCpuStopState::Running;
 			CheckForInterrupts();
 		}
@@ -91,7 +90,6 @@ void SnesCpu::Idle()
 	ProcessCpuCycle();
 	_memoryManager->IncMasterClock6();
 	_emu->ProcessIdleCycle<CpuType::Snes>();
-	UpdateIrqNmiFlags();
 #endif
 }
 
@@ -107,8 +105,6 @@ void SnesCpu::IdleOrDummyWrite(uint32_t addr, uint8_t value)
 		_memoryManager->IncMasterClock6();
 		_emu->ProcessIdleCycle<CpuType::Snes>();
 	}
-
-	UpdateIrqNmiFlags();
 #endif
 }
 
@@ -125,8 +121,12 @@ void SnesCpu::IdleTakeBranch()
 void SnesCpu::ProcessCpuCycle()
 {
 	_state.CycleCount++;
+	if(_dmaController->HasPendingTransfer()){
+		_state.IrqLock = _dmaController->ProcessPendingTransfers();
+	} else {
+		_state.IrqLock = false;
+	}
 	DetectNmiSignalEdge();
-	_state.IrqLock = _dmaController->ProcessPendingTransfers();
 }
 
 uint16_t SnesCpu::ReadVector(uint16_t vector)
@@ -145,9 +145,7 @@ uint8_t SnesCpu::Read(uint32_t addr, MemoryOperationType type)
 {
 	_memoryManager->SetCpuSpeed(_memoryManager->GetCpuSpeed(addr));
 	ProcessCpuCycle();
-	uint8_t value = _memoryManager->Read(addr, type);
-	UpdateIrqNmiFlags();
-	return value;
+	return _memoryManager->Read(addr, type);
 }
 
 void SnesCpu::Write(uint32_t addr, uint8_t value, MemoryOperationType type)
@@ -155,6 +153,5 @@ void SnesCpu::Write(uint32_t addr, uint8_t value, MemoryOperationType type)
 	_memoryManager->SetCpuSpeed(_memoryManager->GetCpuSpeed(addr));
 	ProcessCpuCycle();
 	_memoryManager->Write(addr, value, type);
-	UpdateIrqNmiFlags();
 }
 #endif

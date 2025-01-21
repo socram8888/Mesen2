@@ -326,6 +326,7 @@ void Emulator::Reset()
 	_systemActionManager->ResetState();
 
 	_console->GetControlManager()->UpdateInputState();
+	_console->GetControlManager()->ResetLagCounter();
 
 	_videoRenderer->ClearFrame();
 
@@ -410,6 +411,8 @@ bool Emulator::InternalLoadRom(VirtualFile romFile, VirtualFile patchFile, bool 
 		//Make sure the battery is saved to disk before we load another game (or reload the same game)
 		_console->SaveBattery();
 	}
+
+	_soundMixer->StopAudio();
 
 	if(!forPowerCycle) {
 		_movieManager->Stop();

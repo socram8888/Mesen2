@@ -17,7 +17,6 @@
 	x:Class="Mesen.Debugger.Windows.FindAllOccurrencesWindow"
 	Width="300" Height="100"
 	CanResize="False"
-	ShowInTaskbar="False"
 	Name="root"
 	Title="{l:Translate wndTitle}"
 >
@@ -33,7 +32,7 @@
 				<TextBox
 					Name="txtSearch"
 					HorizontalAlignment="Stretch"
-					Text="{Binding SearchString, ElementName=root}"
+					Text="{Binding SearchString, ElementName=root, Converter={StaticResource NullTextConverter}}"
 				/>
 			</DockPanel>
 			<CheckBox IsChecked="{Binding MatchCase, ElementName=root}" Content="{l:Translate chkMatchCase}" />

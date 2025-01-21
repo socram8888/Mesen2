@@ -59,6 +59,7 @@ private:
 	uint16_t _adjustedVblankEndScanline;
 	uint16_t _nmiScanline;
 	bool _overclockEnabled;
+	bool _inOverclockedScanline = false;
 
 	uint8_t _oddFrame = 0;
 
@@ -199,6 +200,9 @@ private:
 	bool IsDoubleHeight();
 	bool IsDoubleWidth();
 
+	bool CanAccessCgram();
+	bool CanAccessVram();
+
 	void EvaluateNextLineSprites();
 	void FetchSpriteData();
 	__forceinline void FetchSpritePosition(uint8_t oamAddress);
@@ -237,6 +241,7 @@ public:
 	void GetState(SnesPpuState &state, bool returnPartialState);
 
 	bool ProcessEndOfScanline(uint16_t& hClock);
+	bool IsInOverclockedScanline();
 	void UpdateSpcState();
 	void UpdateNmiScanline();
 	uint16_t GetLastScanline();

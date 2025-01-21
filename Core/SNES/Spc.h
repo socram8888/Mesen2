@@ -49,6 +49,7 @@ private:
 	uint8_t _opSubStep = 0;
 
 	bool _enabled = false;
+	bool _pendingCpuRegUpdate = false;
 	uint32_t _spcSampleRate = Spc::SpcSampleRate;
 
 	SpcState _state;
@@ -278,11 +279,11 @@ private:
 	uint8_t GetOpCode();
 	uint8_t ReadOperandByte();
 
-	void IncCycleCount(int32_t addr);
+	__forceinline void IncCycleCount(int32_t addr);
 	void EndOp();
 	void EndAddr();
-	void ProcessCycle();
-	void Exec();
+	__forceinline void ProcessCycle();
+	__forceinline void Exec();
 	
 	void UpdateClockRatio();
 	void ExitExecLoop();

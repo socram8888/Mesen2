@@ -497,6 +497,7 @@ struct PcEngineConfig
 	ControllerConfig Port1;
 	ControllerConfig Port1SubPorts[5];
 
+	bool AllowInvalidInput = false;
 	bool PreventSelectRunReset = false;
 
 	PceConsoleType ConsoleType = PceConsoleType::Auto;
@@ -529,6 +530,7 @@ enum class DspInterpolationType
 {
 	Gauss,
 	Cubic,
+	Sinc,
 	None
 };
 
@@ -542,6 +544,7 @@ struct SnesConfig
 
 	ConsoleRegion Region = ConsoleRegion::Auto;
 
+	bool AllowInvalidInput = false;
 	bool BlendHighResolutionModes = false;
 	bool HideBgLayer1 = false;
 	bool HideBgLayer2 = false;
@@ -694,6 +697,7 @@ struct SmsConfig
 
 	SmsRevision Revision = SmsRevision::Compatibility;
 
+	bool AllowInvalidInput = false;
 	bool UseSgPalette = false;
 	bool GgBlendFrames = true;
 	bool RemoveSpriteLimit = false;
@@ -1064,10 +1068,11 @@ enum class DebuggerFlags
 	GsuDebuggerEnabled = (1 << 3),
 	NecDspDebuggerEnabled = (1 << 4),
 	Cx4DebuggerEnabled = (1 << 5),
-	GbDebuggerEnabled = (1 << 6),
-	NesDebuggerEnabled = (1 << 7),
-	PceDebuggerEnabled = (1 << 8),
-	SmsDebuggerEnabled = (1 << 9),
-	GbaDebuggerEnabled = (1 << 10),
-	WsDebuggerEnabled = (1 << 11),
+	St018DebuggerEnabled = (1 << 6),
+	GbDebuggerEnabled = (1 << 7),
+	NesDebuggerEnabled = (1 << 8),
+	PceDebuggerEnabled = (1 << 9),
+	SmsDebuggerEnabled = (1 << 10),
+	GbaDebuggerEnabled = (1 << 11),
+	WsDebuggerEnabled = (1 << 12),
 };

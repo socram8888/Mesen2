@@ -71,6 +71,7 @@ namespace Mesen.Debugger.ViewModels
 		private object _updateLock = new();
 		private byte[] _coreSourceData = Array.Empty<byte>();
 		private byte[] _sourceData = Array.Empty<byte>();
+		private bool _refreshPending;
 
 		[Obsolete("For designer only")]
 		public TileViewerViewModel() : this(CpuType.Snes, new PictureViewer(), null) { }
@@ -137,7 +138,7 @@ namespace Mesen.Debugger.ViewModels
 				},
 			});
 
-			DebugShortcutManager.CreateContextMenu(picViewer, new List<object> {
+			AddDisposables(DebugShortcutManager.CreateContextMenu(picViewer, new List<object> {
 				new ContextMenuAction() {
 					ActionType = ActionType.EditTile,
 					HintText = () => $"{GridSizeX}px x {GridSizeY}px",
@@ -148,30 +149,11 @@ namespace Mesen.Debugger.ViewModels
 				new ContextMenuAction() {
 					ActionType = ActionType.EditTiles,
 					SubActions = new() {
-						new ContextMenuAction() {
-							ActionType = ActionType.Custom,
-							CustomText = $"1x2 ({GridSizeX}px x {GridSizeY*2}px)",
-							IsEnabled = () => GetSelectedTileAddress() >= 0,
-							OnClick = () => EditTileGrid(1, 2, wnd)
-						},
-						new ContextMenuAction() {
-							ActionType = ActionType.Custom,
-							CustomText = $"2x1 ({GridSizeX*2}px x {GridSizeY}px)",
-							IsEnabled = () => GetSelectedTileAddress() >= 0,
-							OnClick = () => EditTileGrid(2, 1, wnd)
-						},
-						new ContextMenuAction() {
-							ActionType = ActionType.Custom,
-							CustomText = $"2x2 ({GridSizeX*2}px x {GridSizeY*2}px)",
-							IsEnabled = () => GetSelectedTileAddress() >= 0,
-							OnClick = () => EditTileGrid(2, 2, wnd)
-						},
-						new ContextMenuAction() {
-							ActionType = ActionType.Custom,
-							CustomText = $"4x4 ({GridSizeX*4}px x {GridSizeY*4}px)",
-							IsEnabled = () => GetSelectedTileAddress() >= 0,
-							OnClick = () => EditTileGrid(4, 4, wnd)
-						}
+						GetEditTileAction(1, 2, wnd),
+						GetEditTileAction(2, 1, wnd),
+						GetEditTileAction(2, 2, wnd),
+						GetEditTileAction(4, 4, wnd),
+						GetEditTileAction(8, 8, wnd)
 					}
 				},
 				new ContextMenuSeparator(),
@@ -198,7 +180,7 @@ namespace Mesen.Debugger.ViewModels
 						}
 					}
 				}
-			});
+			}));
 
 			DebugShortcutManager.RegisterActions(wnd, FileMenuActions);
 			DebugShortcutManager.RegisterActions(wnd, ViewMenuActions);
@@ -465,27 +447,42 @@ namespace Mesen.Debugger.ViewModels
 
 		private void RefreshTab()
 		{
+			if(_refreshPending) {
+				return;
+			}
+
+			_refreshPending = true;
 			Dispatcher.UIThread.Post(() => {
-				InitBitmap();
-				
-				lock(_updateLock) {
-					Array.Resize(ref _sourceData, _coreSourceData.Length);
-					Array.Copy(_coreSourceData, _sourceData, _coreSourceData.Length);
-				}
-
-				using(var framebuffer = ViewerBitmap.Lock()) {
-					DebugApi.GetTileView(CpuType, GetOptions(), _sourceData, _sourceData.Length, PaletteColors, framebuffer.FrameBuffer.Address);
-				}
-
-				if(IsNesChrModeEnabled) {
-					DrawNesChrPageDelimiters();
-				} else {
-					PageDelimiters = null;
-				}
-
-				UpdatePreviewPanel();
-				LoadSelectedPreset(true);
+				InternalRefreshTab();
+				_refreshPending = false;
 			});
+		}
+
+		private void InternalRefreshTab()
+		{
+			if(Disposed) {
+				return;
+			}
+
+			InitBitmap();
+				
+			lock(_updateLock) {
+				Array.Resize(ref _sourceData, _coreSourceData.Length);
+				Array.Copy(_coreSourceData, _sourceData, _coreSourceData.Length);
+			}
+
+			using(var framebuffer = ViewerBitmap.Lock()) {
+				DebugApi.GetTileView(CpuType, GetOptions(), _sourceData, _sourceData.Length, PaletteColors, framebuffer.FrameBuffer.Address);
+			}
+
+			if(IsNesChrModeEnabled) {
+				DrawNesChrPageDelimiters();
+			} else {
+				PageDelimiters = null;
+			}
+
+			UpdatePreviewPanel();
+			LoadSelectedPreset(true);
 		}
 
 		private int GetTileAddress(PixelPoint pixelPosition)
@@ -556,6 +553,16 @@ namespace Mesen.Debugger.ViewModels
 			}
 		}
 
+		private ContextMenuAction GetEditTileAction(int columnCount, int rowCount, Window wnd)
+		{
+			return new ContextMenuAction() {
+				ActionType = ActionType.Custom,
+				CustomText = $"{columnCount}x{rowCount} ({GridSizeX * columnCount}px x {GridSizeY * rowCount}px)",
+				IsEnabled = () => GetSelectedTileAddress() >= 0,
+				OnClick = () => EditTileGrid(columnCount, rowCount, wnd)
+			};
+		}
+
 		private void EditTileGrid(int columnCount, int rowCount, Window wnd)
 		{
 			PixelPoint p = ViewerMousePos ?? PixelPoint.FromPoint(SelectionRect.TopLeft, 1);
@@ -565,7 +572,16 @@ namespace Mesen.Debugger.ViewModels
 					addresses.Add(new AddressInfo() { Address = GetTileAddress(new PixelPoint(p.X + col*GridSizeX, p.Y + row*GridSizeY)), Type = Config.Source });
 				}
 			}
-			TileEditorWindow.OpenAtTile(addresses, columnCount, Config.Format, SelectedPalette, wnd);
+			TileEditorWindow.OpenAtTile(
+				addresses,
+				columnCount,
+				Config.Format,
+				SelectedPalette,
+				wnd,
+				CpuType,
+				RefreshTiming.Config.RefreshScanline,
+				RefreshTiming.Config.RefreshCycle
+			);
 		}
 
 		private void DrawNesChrPageDelimiters()

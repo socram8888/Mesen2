@@ -67,9 +67,7 @@ GbaMemoryManager::~GbaMemoryManager()
 
 void GbaMemoryManager::ProcessIdleCycle()
 {
-	if(_state.PrefetchEnabled) {
-		_prefetch->Exec(1);
-	}
+	_prefetch->Exec(1, _state.PrefetchEnabled);
 	ProcessInternalCycle<true>();
 }
 
@@ -190,19 +188,15 @@ uint8_t GbaMemoryManager::GetWaitStates(GbaAccessModeVal mode, uint32_t addr)
 void GbaMemoryManager::ProcessWaitStates(GbaAccessModeVal mode, uint32_t addr)
 {
 	uint8_t waitStates;
-	if(_state.PrefetchEnabled) {
-		if(addr < 0x8000000 || addr >= 0x10000000) {
-			waitStates = GetWaitStates(mode, addr);
-			_prefetch->Exec(waitStates);
-		} else if((mode & GbaAccessMode::Dma) || !(mode & GbaAccessMode::Prefetch)) {
-			//Accesses to ROM from DMA or reads not caused by the CPU loading opcodes will reset the cartridge prefetcher
-			//When the prefetch is reset on its last cycle, the ROM access takes an extra cycle to complete
-			waitStates = GetWaitStates(mode, addr) + (int)_prefetch->Reset();
-		} else {
-			waitStates = _prefetch->Read(mode, addr);
-		}
-	} else {
+	if(addr < 0x8000000 || addr >= 0x10000000) {
 		waitStates = GetWaitStates(mode, addr);
+		_prefetch->Exec(waitStates, _state.PrefetchEnabled);
+	} else if((mode & GbaAccessMode::Dma) || !(mode & GbaAccessMode::Prefetch)) {
+		//Accesses to ROM from DMA or reads not caused by the CPU loading opcodes will reset the cartridge prefetcher
+		//When the prefetch is reset on its last cycle, the ROM access takes an extra cycle to complete
+		waitStates = GetWaitStates(mode, addr) + (int)_prefetch->Reset();
+	} else {
+		waitStates = _state.PrefetchEnabled ? _prefetch->Read<true>(mode, addr) : _prefetch->Read<false>(mode, addr);
 	}
 
 	ProcessInternalCycle<true>();
@@ -250,11 +244,19 @@ void GbaMemoryManager::UpdateOpenBus(uint32_t addr, uint32_t value)
 			value >>= 8;
 		}
 		memcpy(_state.InternalOpenBus, _state.IwramOpenBus, sizeof(_state.IwramOpenBus));
-	} else {
-		for(int i = 0; i < width; i++) {
-			_state.InternalOpenBus[i] = value;
-			value >>= 8;
-		}
+	} else if constexpr(width == 4) {
+		_state.InternalOpenBus[0] = value;
+		_state.InternalOpenBus[1] = value >> 8;
+		_state.InternalOpenBus[2] = value >> 16;
+		_state.InternalOpenBus[3] = value >> 24;
+	} else if constexpr(width == 2) {
+		_state.InternalOpenBus[2] = _state.InternalOpenBus[0] = value;
+		_state.InternalOpenBus[3] = _state.InternalOpenBus[1] = value >> 8;
+	} else if constexpr(width == 1) {
+		_state.InternalOpenBus[0] = value;
+		_state.InternalOpenBus[1] = value;
+		_state.InternalOpenBus[2] = value;
+		_state.InternalOpenBus[3] = value;
 	}
 }
 
@@ -276,7 +278,7 @@ uint32_t GbaMemoryManager::Read(GbaAccessModeVal mode, uint32_t addr)
 		value = InternalRead(mode, addr, addr);
 		UpdateOpenBus<1>(addr, value);
 		value = isSigned ? (uint32_t)(int8_t)value : (uint8_t)value;
-		_emu->ProcessMemoryRead<CpuType::Gba, 1>(addr, value, mode & GbaAccessMode::Prefetch ? MemoryOperationType::ExecOpCode : MemoryOperationType::Read);
+		_emu->ProcessMemoryRead<CpuType::Gba, 1>(addr, value, MemoryOperationType::Read);
 	} else if(mode & GbaAccessMode::HalfWord) {
 		uint8_t b0 = InternalRead(mode, addr & ~0x01, addr);
 		uint8_t b1 = InternalRead(mode, addr | 1, addr);

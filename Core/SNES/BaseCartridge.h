@@ -12,6 +12,7 @@ class EmuSettings;
 class NecDsp;
 class Sa1;
 class Gsu;
+class St018;
 class Cx4;
 class SuperGameboy;
 class BsxCart;
@@ -20,6 +21,7 @@ class Gameboy;
 class SnesConsole;
 class Emulator;
 class SpcFileData;
+class SufamiTurbo;
 enum class ConsoleRegion;
 enum class RamState;
 
@@ -40,11 +42,13 @@ private:
 	NecDsp *_necDsp = nullptr;
 	Sa1 *_sa1 = nullptr;
 	Gsu *_gsu = nullptr;
-	Cx4 *_cx4 = nullptr;
+	Cx4* _cx4 = nullptr;
+	St018 *_st018 = nullptr;
 	SuperGameboy *_sgb = nullptr;
 	BsxCart* _bsx = nullptr;
 	unique_ptr<BsxMemoryPack> _bsxMemPack;
 	unique_ptr<Gameboy> _gameboy;
+	unique_ptr<SufamiTurbo> _sufamiTurbo;
 
 	CartFlags::CartFlags _flags = CartFlags::CartFlags::None;
 	CoprocessorType _coprocessorType = CoprocessorType::None;
@@ -81,10 +85,13 @@ private:
 	void InitRamPowerOnState();
 
 	void LoadRom();
-	void EnsureValidPrgRomSize();
 
 	void LoadSpc();
+	
+	bool LoadSufamiTurbo(VirtualFile& romFile);
+
 	bool LoadGameboy(VirtualFile& romFile);
+
 	void SetupCpuHalt();
 	void InitCoprocessor();
 	void LoadEmbeddedFirmware();
@@ -96,6 +103,8 @@ public:
 	virtual ~BaseCartridge();
 
 	static unique_ptr<BaseCartridge> CreateCartridge(SnesConsole* console, VirtualFile &romFile);
+
+	static void EnsureValidPrgRomSize(uint32_t& size, uint8_t*& rom);
 
 	void Reset();
 
@@ -124,6 +133,7 @@ public:
 	Sa1* GetSa1();
 	Gsu* GetGsu();
 	Cx4* GetCx4();
+	St018* GetSt018();
 	SuperGameboy* GetSuperGameboy();
 	BsxCart* GetBsx();
 	BsxMemoryPack* GetBsxMemoryPack();
